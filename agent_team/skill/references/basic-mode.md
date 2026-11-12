@@ -20,7 +20,7 @@
 }
 ```
 
-只在项目内写 `.agent-team/members/`、`memory/`、`tasks/`。对 Codex 使用 AGENTS.md、Claude Code 使用 CLAUDE.md、Gemini 使用 GEMINI.md；Cursor 仅在已知支持的规则路径追加适当规则。保留已有内容，追加带唯一标记的轻入口，明确本 Skill 的真实绝对路径和团队位置。
+只在项目内写 `.agent-team/members/`、`memory/`、`tasks/`。对 Codex 使用 AGENTS.md、Claude Code 使用 CLAUDE.md、Gemini 使用 GEMINI.md；Cursor 仅在已知支持的规则路径追加适当规则。保留已有内容，追加带唯一标记的轻入口：通过宿主发现 `agent-team-runtime`，或使用项目内真实存在的 Skill 相对路径；团队位置写 `.agent-team/team.yaml`。不将个人绝对安装路径保存到项目入口。宿主不能发现用户范围 Skill 时说明加载缺口，不假装换一台机器也能读取本机路径。
 
 入口要求：默认单 Agent，复杂任务才读取本 Skill 和团队索引；恢复已有团队；委派遵守宿主权限和本次会话工具证据。普通任务不扫描全角色。
 

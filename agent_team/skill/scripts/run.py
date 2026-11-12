@@ -112,9 +112,7 @@ def main(argv=None):
             return 3
         # Remove implicit cwd and ignore PYTHONPATH, preserving legitimate site packages.
         code = "import sys; sys.path[0] = sys.argv.pop(1); from agent_team.cli import main; raise SystemExit(main())"
-        environment = dict(os.environ, AGENT_TEAM_SKILL_ROOT=str(skill))
-        return subprocess.run([str(python), "-E", "-c", code, str(runtime), *args],
-                              env=environment).returncode
+        return subprocess.run([str(python), "-E", "-c", code, str(runtime), *args]).returncode
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2

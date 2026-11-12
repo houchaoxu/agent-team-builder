@@ -1,5 +1,12 @@
 # 验证记录
 
+## 项目入口可移植性与公开内容检查
+
+- 项目入口使用宿主 Skill 发现和项目/源码相对路径；runner 不再向入口生成器传入安装机器的位置。重复初始化会移除托管块中的旧绝对路径，保留用户自有内容。
+- 移除已提交的个人安装路径、私人会话链接、本机安装记录和会话专属 Agent 标识。公开仓库链接及上游许可署名保留；环境文件和项目内安装的 Skill 副本加入忽略规则。
+- 完整回归 162 项通过。新增检查覆盖五种宿主入口、旧安装指针迁移，以及两处独立安装生成相同入口。扫描了 47 个仓库文件和 19 个导出 Skill 文件，未匹配当前机器个人目录、私人会话链接、私钥或常见 GitHub Token 格式。此定向检查不保证识别所有秘密信息格式。
+- 本次清理未重写已有 Git 历史。
+
 ## Windows JSON 输出兼容修复
 
 - GitHub Actions `43178611557`：Linux/macOS 的 Python 3.9、3.12 全部成功，Windows 两个版本在 pytest 阶段失败。公开接口未提供详细 traceback；没有将浏览器权限受限的日志声称为已读取。
@@ -13,7 +20,6 @@
 - 回归覆盖：中文慢 SQL/营销/无障碍访问检索、无结果与分页、长 Prompt 不进入候选请求、陈旧或伪造评估拒绝、缓存损坏/失效、去重先于分页、平台不兼容现有角色不阻挡后备候选、固定 URL/版本/内容 hash、离线与损坏缓存、路径与重定向限制、预览/授权安装、来源记录及重复安装。
 - Python 3.9.6 最终完整测试：`python -m pytest tests -q`，147 项通过。独立 Code Reviewer 再次运行最终版本全量测试，147 项通过；发现的 3 个 P2（先去重再分页、平台/宿主指纹、跨平台去重）均已修复并独立复核，最终无已知阻塞发现。
 - 独立 Test Engineer 使用最终导出的 19 文件 Skill，从其他工作目录完成真实小红书场景：现有角色无匹配后才检索后备库、6 张卡语义评估、真实联网角色下载、hash 校验、预览/批准、离线读取及安装、重复安装字节不变、安装后优先复用与后备排除。原生角色状态仍为未验证，没有冒充已经可调用。
-- 本机已安装个人 Skill 已更新到 2.5.0 并保留旧版备份；`--check` 为 ready，安装后从其他目录检索小红书成功。更新前后全局 `AGENTS.md` 与 9 个角色 TOML 的 SHA-256 全部一致。
 - Skill `quick_validate.py` 通过。干净源码 wheel/sdist 构建成功，检查索引和 MIT 随包提供、维护脚本进入 sdist、无 pyc/系统缓存。wheel 独立目录安装后脱离源码检索小红书角色成功；自包含 Skill 导出及再次导出保留索引与许可。
 - 原始角色真实联网下载并通过 SHA-256 校验，离线缓存复用成功。本文中的联网验证只请求固定上游角色文件，不执行上游脚本。
 - 尚未做大型准确率基准、真实 Token 计量或 Windows/其他宿主本轮实机验收。第一版检索为词法召回加宿主语义判断，不提供 embedding 模型；未命中时由宿主补义或有限扩大检索。
@@ -34,7 +40,7 @@
 - 完整测试：Python 3.13 `python -m pytest tests -q`，85 项通过。
 - 系统 Python 3.9 安装器专项 unittest：14 项通过，含 `-S` 无第三方依赖预览、冷包初始化/恢复、缓存与防覆盖回归。
 - Skill validator 通过，wheel 构建通过。完整 Skill 压缩包生成于 `dist/agent-team-runtime-skill.zip`。
-- 独立 Reviewer 在隔离临时项目中完成真实对话安装前向场景：无全局 CLI、从源码目录之外预览/安装，冷 bundle init/status、简单任务完整生命周期、guide，以及三代 bundle 再导出的14项资源保持一致；旧入口刷新绝对 Skill 路径且保留用户前后内容。
+- 独立 Reviewer 在隔离临时项目中完成真实对话安装前向场景：无全局 CLI、从源码目录之外预览/安装，冷 bundle init/status、简单任务完整生命周期、guide，以及三代 bundle 再导出的14项资源保持一致；旧入口刷新并保留用户前后内容。
 - 本轮独立 Review 最终无已知阻塞发现，独立专项测试38项通过；基础模式完成指令与格式兼容性审查，未将其描述为完整引擎执行验收。
 - 本轮未真实联网安装依赖；setup 失败路径、缓存复用用隔离 mock 验证。不宣称当前宿主已自动发现临时安装 Skill。这些验证在仓库首次公开发布之前完成。
 
@@ -64,7 +70,7 @@
 - strategy：`native_subagents`
 - batches：`[[alpha, beta]]`
 
-主 Agent 依照两个生成的 handoff 实际调用 `collaboration.spawn_agent`，分别启动 `/root/native_alpha` 和 `/root/native_beta`（Implementation Engineer）。每个 Agent 只有一个文本文件的写入范围，未再委派。
+主 Agent 依照两个生成的 handoff 实际调用 `collaboration.spawn_agent`，分别启动两个 Implementation Engineer。每个 Agent 只有一个文本文件的写入范围，未再委派。
 
 两个 Agent 都实际返回完成结果。主 Agent 随后独立读取并断言 `alpha.txt == b'alpha\n'`、`beta.txt == b'beta\n'`，写入真实验收 evidence，并用 `get_task` 验证持久化状态为 `completed`。
 

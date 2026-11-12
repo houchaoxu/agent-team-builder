@@ -159,7 +159,8 @@ class InstallerTests(unittest.TestCase):
         project.mkdir()
         entry = project / "AGENTS.md"
         entry.write_text("User prefix\n<!-- agent-team-runtime:begin -->\nUse obsolete global CLI\n"
-                         "<!-- agent-team-runtime:end -->\nUser suffix\n", encoding="utf-8")
+                         + "Skill workflow: " + json.dumps(str(self.destination / "SKILL.md")) + "\n"
+                         + "<!-- agent-team-runtime:end -->\nUser suffix\n", encoding="utf-8")
         script = self.destination / "scripts/run.py"
         args = [sys.executable, str(script), "--project", str(project), "--platform", "codex"]
         result = subprocess.run(args + ["init"], cwd=str(self.root), capture_output=True, text=True, encoding="utf-8")
@@ -168,7 +169,10 @@ class InstallerTests(unittest.TestCase):
         content = entry.read_text(encoding="utf-8")
         self.assertTrue(content.startswith("User prefix\n"))
         self.assertTrue(content.endswith("User suffix\n"))
-        self.assertIn(json.dumps(str(self.destination / "SKILL.md"), ensure_ascii=False), content)
+        self.assertIn(".agents/skills/agent-team-runtime/SKILL.md", content)
+        self.assertIn("agent_team/skill/SKILL.md", content)
+        self.assertNotIn(str(self.destination), content)
+        self.assertNotIn("Skill workflow:", content)
         self.assertNotIn("obsolete global CLI", content)
         result = subprocess.run(args + ["init"], cwd=str(self.root), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(json.loads(result.stdout), first)

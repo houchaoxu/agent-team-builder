@@ -84,11 +84,10 @@ def entry_text(platform):
             "Reuse the existing .agent-team/team.yaml team across sessions; do not recreate it.\n"
             "Then load only the roles and task records needed for the current task.\n"
             "Delegate only within existing user authorization and host restrictions, with explicit host capability evidence.\n"
+            "Locate agent-team-runtime through the host's discovered Skills.\n"
+            "For a project installation, read .agents/skills/agent-team-runtime/SKILL.md; in this source repository, read agent_team/skill/SKILL.md.\n"
+            "If neither is available, use the host's installation/discovery workflow before enabling team features.\n"
             "<!-- agent-team-runtime:end -->\n")
-    skill = os.environ.get("AGENT_TEAM_SKILL_ROOT")
-    if skill and (Path(skill) / "SKILL.md").is_file():
-        pointer = "Skill workflow: {}\n".format(json.dumps(str(Path(skill).resolve() / "SKILL.md"), ensure_ascii=False))
-        text = text.replace("<!-- agent-team-runtime:end -->", pointer + "<!-- agent-team-runtime:end -->")
     if platform == "cursor":
         return '---\ndescription: Agent Team Runtime project entry\nalwaysApply: true\n---\n\n' + text
     return text

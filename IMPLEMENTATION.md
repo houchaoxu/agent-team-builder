@@ -1,7 +1,5 @@
 # Agent Team Runtime 实现约定
 
-需求来源：https://chatgpt.com/s/t_6af52790b7c481919c628336c14738b5
-
 交付 Python >=3.9 CLI + 可安装 Skill；YAML/Markdown 持久化，不依赖外部服务。
 宿主负责自然语言理解、实际启动 Agent 和最终验收；CLI 负责确定性状态、调度校验、交接生成与记录。没有宿主能力证据时必须降级，不假装执行。
 
@@ -41,6 +39,7 @@ host 格式与 adapter 相同；host.native_subagents 只有显式布尔 true �
 `detect_platform(root, env=None) -> str`；`capabilities(platform, host=None) -> dict`；
 `entry_path(platform) -> str`；`entry_text(platform) -> str`；
 `render_role(role, platform) -> {path: relative str, content: str}`。
+项目入口使用宿主 Skill 发现和仓库相对路径，不持久化安装机器的绝对路径；恢复项目时仅更新托管入口块，保留用户自有内容。
 平台 codex/claude-code/cursor/gemini-cli/generic；本地 role 文件或 CLI 存在不等于可调用。host `{native_subagents:bool,evidence:str,available_agents:[str],max_parallel_agents:int?,...}`。
 
 ### marketplace

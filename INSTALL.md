@@ -16,7 +16,7 @@
 2. 预览：`<python> <repo>/install.py --project <project> --scope project --platform codex`。
 3. 对已授权的范围执行同命令加 `--approve`。明确项目/个人安装的用户请求已提供相应授权，不额外机械确认；宿主的实际写入权限仍需遵守。
 4. 读取安装后 SKILL.md，Agent 执行 `<python> <skill>/scripts/run.py --check`。若要求准备环境，执行一次 `--setup`，依赖安装到 Skill 私有缓存环境，不影响系统包。
-5. Agent 调 runner 进行 `--project <project> --platform <actual-platform> init` 与 `status`。项目入口保留用户已有内容。
+5. Agent 调 runner 进行 `--project <project> --platform <actual-platform> init` 与 `status`。项目入口保留用户已有内容，使用宿主 Skill 发现或项目相对路径，不保存个人绝对安装目录。
 6. 验证当前宿主是否发现 Skill。无法证明已加载时，准确报告“文件已安装，待宿主加载”；按宿主实际要求引导重新打开会话。
 
 更详细的动作边界与基础模式在安装包的 `references/installation.md`、`references/basic-mode.md`。失败时记录准确原因；可完成的项目配置继续完成，不绕过环境权限或无限重试下载。
