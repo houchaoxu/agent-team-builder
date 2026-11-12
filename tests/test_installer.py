@@ -2,6 +2,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -135,7 +136,8 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse(self.destination.exists())
 
     def test_cached_environment_reused_without_network(self):
-        python = self.destination / ".cache/env/bin/python"
+        executable = "Scripts/python.exe" if os.name == "nt" else "bin/python"
+        python = self.destination / ".cache/env" / executable
         python.parent.mkdir(parents=True)
         python.write_text("fixture")
         with patch.object(runner, "available", side_effect=lambda path: Path(path) == python), \
@@ -166,7 +168,7 @@ class InstallerTests(unittest.TestCase):
         content = entry.read_text(encoding="utf-8")
         self.assertTrue(content.startswith("User prefix\n"))
         self.assertTrue(content.endswith("User suffix\n"))
-        self.assertIn(str(self.destination / "SKILL.md"), content)
+        self.assertIn(json.dumps(str(self.destination / "SKILL.md"), ensure_ascii=False), content)
         self.assertNotIn("obsolete global CLI", content)
         result = subprocess.run(args + ["init"], cwd=str(self.root), capture_output=True, text=True)
         self.assertEqual(json.loads(result.stdout), first)
