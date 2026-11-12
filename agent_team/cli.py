@@ -207,6 +207,10 @@ def dispatch(args):
 
 
 def main(argv=None):
+    # JSON is a UTF-8 protocol, independent of Windows' redirected code page.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     args = parser().parse_args(argv)
     try:
         result = dispatch(args)

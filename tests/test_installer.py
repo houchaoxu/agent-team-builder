@@ -70,7 +70,7 @@ class InstallerTests(unittest.TestCase):
     def test_preview_needs_neither_dependencies_nor_writes(self):
         result = subprocess.run([sys.executable, "-S", str(REPO / "install.py"),
                                  "--destination", str(self.destination)],
-                                cwd=str(self.root), capture_output=True, text=True)
+                                cwd=str(self.root), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "preview")
         self.assertFalse(self.destination.exists())
@@ -90,7 +90,7 @@ class InstallerTests(unittest.TestCase):
         script = self.destination / "scripts/run.py"
         # -S is only for bootstrap: runner's isolated child checks actual dependencies.
         result = subprocess.run([sys.executable, "-S", str(script), "--check"],
-                                cwd=str(self.root), capture_output=True, text=True)
+                                cwd=str(self.root), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(json.loads(result.stdout)["status"], ("ready", "setup_required"))
         self.assertFalse((self.destination / ".cache").exists())
@@ -100,7 +100,7 @@ class InstallerTests(unittest.TestCase):
             self.skipTest("Current interpreter lacks optional runtime dependencies")
         export_bundle(self.destination)
         result = subprocess.run([sys.executable, str(self.destination / "scripts/run.py"),
-                                 "--version"], cwd=str(self.root), capture_output=True, text=True,
+                                 "--version"], cwd=str(self.root), capture_output=True, text=True, encoding="utf-8",
                                 env=dict(os.environ, PYTHONPATH=str(self.root / "invalid")))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("2.5.0", result.stdout)
@@ -162,7 +162,7 @@ class InstallerTests(unittest.TestCase):
                          "<!-- agent-team-runtime:end -->\nUser suffix\n", encoding="utf-8")
         script = self.destination / "scripts/run.py"
         args = [sys.executable, str(script), "--project", str(project), "--platform", "codex"]
-        result = subprocess.run(args + ["init"], cwd=str(self.root), capture_output=True, text=True)
+        result = subprocess.run(args + ["init"], cwd=str(self.root), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stderr)
         first = json.loads(result.stdout)
         content = entry.read_text(encoding="utf-8")
@@ -170,7 +170,7 @@ class InstallerTests(unittest.TestCase):
         self.assertTrue(content.endswith("User suffix\n"))
         self.assertIn(json.dumps(str(self.destination / "SKILL.md"), ensure_ascii=False), content)
         self.assertNotIn("obsolete global CLI", content)
-        result = subprocess.run(args + ["init"], cwd=str(self.root), capture_output=True, text=True)
+        result = subprocess.run(args + ["init"], cwd=str(self.root), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(json.loads(result.stdout), first)
         self.assertEqual(entry.read_text(encoding="utf-8"), content)
 

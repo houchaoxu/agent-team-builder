@@ -118,7 +118,7 @@ def test_exported_bundle_retrieves_offline_from_unrelated_cwd(tmp_path):
     project.mkdir()
     result = subprocess.run([sys.executable, str(skill / 'scripts/run.py'), '--project', str(project),
                              'role', 'recommend', '--query', '小红书营销', '--library', 'agency'],
-                            cwd=str(tmp_path), text=True, capture_output=True)
+                            cwd=str(tmp_path), text=True, encoding='utf-8', capture_output=True)
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout)
     assert payload['candidates'][0]['id'] == 'agency-marketing-xiaohongshu-specialist'

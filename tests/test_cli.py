@@ -113,7 +113,7 @@ class CLITests(unittest.TestCase):
 
     def test_module_entrypoint_and_skill_export(self):
         completed = subprocess.run([sys.executable, "-m", "agent_team", "--version"],
-                                   capture_output=True, text=True, check=False)
+                                   capture_output=True, text=True, encoding="utf-8", check=False)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("2.5.0", completed.stdout)
         destination = self.root / "exported-skill"

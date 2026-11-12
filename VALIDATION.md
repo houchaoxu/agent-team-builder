@@ -1,5 +1,11 @@
 # 验证记录
 
+## Windows JSON 输出兼容修复
+
+- GitHub Actions `43178611557`：Linux/macOS 的 Python 3.9、3.12 全部成功，Windows 两个版本在 pytest 阶段失败。公开接口未提供详细 traceback；没有将浏览器权限受限的日志声称为已读取。
+- 本地把子进程 stdout/stderr 强制设为 cp1252，中文素材库推荐稳定复现 `UnicodeEncodeError`。CLI、标准库安装器和 Skill runner 的 JSON 输出统一为 UTF-8，测试调用方显式用 UTF-8 解码，不通过跳过 Windows 或覆盖 CI 环境掩盖问题。
+- 新增 8 项真实子进程回归，覆盖中文推荐、中文安装路径、三入口中文错误及 surrogateescape 文件名错误 JSON。统一 UTF-8 时显式保留 backslashreplace，避免错误处理自身再次崩溃。Python 3.9.6 完整测试 155 项通过；远程最终结果以修复提交对应的 Actions 任务为准。
+
 ## Agency-Agents 后备素材库（2.5.0）
 
 - 内置真实上游 `msitarzewski/agency-agents` 的 283 张角色卡，固定 revision `8ae6164602c95ca78828b148b9052460ee426885`；索引 185,189 bytes，附上游 MIT 许可。维护脚本二次构建复用 283/283 未变卡片。
