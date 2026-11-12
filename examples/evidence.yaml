@@ -1,0 +1,6 @@
+# 仅格式示例。必须替换成实际执行结果。
+checks:
+  - command: python3 -m unittest discover -s tests -v
+    result: passed
+artifacts: []
+limitations: []

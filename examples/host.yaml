@@ -1,0 +1,6 @@
+# 示例值仅说明格式；请用当前宿主真实工具和实际角色ID替换。
+# 不要将这个示例直接当成可调用性证据。
+native_subagents: false
+evidence: ''
+available_agents: []
+max_parallel_agents: 3

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-team-runtime"
+version = "2.4.0"
+description = "Persistent, on-demand agent teams for coding assistants"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["PyYAML>=6.0,<7", "tomli>=2.0; python_version < '3.11'"]
+
+[project.optional-dependencies]
+test = ["pytest>=7,<9"]
+
+[project.scripts]
+agent-team = "agent_team.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["agent_team*"]
+
+[tool.setuptools.package-data]
+agent_team = ["skill/**/*", "skill/SKILL.md"]

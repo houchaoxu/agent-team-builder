@@ -1,0 +1,23 @@
+title: 订单模块接口与页面
+goal: 按约定契约实现订单接口及页面
+scores:
+  independence: 90
+  complexity: 80
+  specialization: 80
+  parallel_benefit: 85
+acceptance_criteria:
+  - 后端订单接口测试通过
+  - 前端订单页面构建通过
+work_items:
+  - id: api
+    role: backend-developer
+    goal: 实现订单创建及查询接口
+    deliverables: [订单接口, 接口测试结果]
+    write_scope: [server/]
+    depends_on: []
+  - id: ui
+    role: frontend-developer
+    goal: 基于约定接口实现订单页面
+    deliverables: [订单页面, 构建结果]
+    write_scope: [web/]
+    depends_on: []
