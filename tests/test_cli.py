@@ -84,6 +84,21 @@ class CLITests(unittest.TestCase):
         self.assertEqual(path.read_text(), "team: [invalid")
         self.assertIn("error", self.invoke("plan", str(self.root / "missing.yaml"), success=False))
 
+    def test_semantic_recommendation_request_and_host_assessment(self):
+        self.invoke("init")
+        query = "检查这段代码有没有安全漏洞"
+        request = self.invoke("role", "recommend", "--query", query)
+        self.assertEqual(request["status"], "awaiting_host_assessment")
+        data = {"request_id": request["request_id"], "matches": [{
+            "id": "code-reviewer", "relevance": .9, "reason": "角色负责安全与正确性审查",
+            "evidence": [{"field": "capabilities", "quote": "security"}]}]}
+        path = self.write("assessment.json", data)
+        result = self.invoke("role", "recommend", "--query", query, "--assessment", path)
+        self.assertEqual(result["recommendations"][0]["id"], "code-reviewer")
+        self.assertIn("error", self.invoke("role", "recommend", "--query", "其他需求",
+                                          "--assessment", path, success=False))
+        self.assertIn("error", self.invoke("role", "recommend", "--assessment", path, success=False))
+
     def test_non_json_yaml_fails_before_persisting_task(self):
         self.invoke("init")
         path = self.root / "dated.yaml"

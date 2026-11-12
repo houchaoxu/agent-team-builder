@@ -9,6 +9,7 @@ from . import __version__
 from .installer import export_bundle, skill_source
 from .adapters import capabilities, detect_platform
 from .marketplace import build_catalog, generate_role, install_role, recommend_roles
+from .recommendation import apply_assessment, semantic_request
 from .runtime import (add_memory, analytics, get_task, list_tasks, plan_task,
                       read_memory, update_task)
 from .storage import bootstrap, discover_root, read_yaml, safe_path, validate_team
@@ -44,7 +45,9 @@ def parser():
     catalog = role_sub.add_parser("catalog")
     catalog.add_argument("--source", action="append", type=Path, default=[])
     recommend = role_sub.add_parser("recommend")
-    recommend.add_argument("--capability", action="append", required=True)
+    recommend.add_argument("--capability", action="append", default=[])
+    recommend.add_argument("--query", help="自然语言需求；由宿主 LLM 进行语义评估")
+    recommend.add_argument("--assessment", type=Path, help="宿主 LLM 的语义评估 YAML/JSON")
     recommend.add_argument("--deliverable", action="append", default=[])
     recommend.add_argument("--source", action="append", type=Path, default=[])
     gen = role_sub.add_parser("generate", help="生成角色草案 JSON 到标准输出")
@@ -123,6 +126,11 @@ def dispatch(args):
         catalog = build_catalog(root, platform, sources=args.source or None, host=host)
         if args.action == "catalog":
             return catalog
+        if args.query is not None:
+            request = semantic_request(catalog, args.query, args.capability, args.deliverable)
+            return apply_assessment(catalog, request, read_yaml(args.assessment)) if args.assessment else request
+        if args.assessment or not args.capability:
+            raise ValueError("Use --query for semantic matching, or --capability for exact matching.")
         return recommend_roles(catalog, args.capability, args.deliverable)
     if args.command == "memory":
         if args.action == "show":

@@ -43,7 +43,7 @@ Prefer one installation across projects? Add **“Install it as a personal Skill
 | 🧠 | **A team that persists** | Reuse your project's team in the next session. |
 | 🎯 | **The right amount of help** | Small tasks stay with one agent; complex tasks get focused assistance. |
 | 🤝 | **Clear ownership** | Dependencies and file boundaries keep parallel work coordinated. |
-| 🧩 | **Roles when needed** | Discover local roles, recommend missing capabilities, or draft a new role. |
+| 🧩 | **Roles that fit your request** | Your agent uses its own LLM to match meaning across languages and role descriptions, with reasons and source quotes. |
 | 📚 | **Project memory** | Keep useful decisions and lessons, with sources and revision history. |
 | 📊 | **Honest execution records** | Track real outcomes and available metrics; unknown values stay unknown. |
 

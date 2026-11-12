@@ -127,13 +127,17 @@ def plan_task(root, spec, host=None):
         if mode != 'single_agent' and (member is None or missing):
             gap = {'work_item_id': item['id'], 'role': item['role'],
                    'capabilities': missing, 'recommendations': [],
-                   'next_steps': ['Use CLI role recommend --capability <required capability>',
+                   'next_steps': ['Use CLI role recommend --query <task goal>, then submit host --assessment',
                                   'Use CLI role generate <id> --name <name> --capability <required capability>']}
             # Role discovery is loaded only when the task has an actual capability gap.
             from .marketplace import build_catalog, recommend_roles
+            from .recommendation import semantic_request
             try:
                 catalog = build_catalog(root, config.get('platform', 'generic'), host=host)
                 gap['recommendations'] = recommend_roles(catalog, missing or [item['role']], item['deliverables'], limit=3)
+                gap['semantic_request'] = semantic_request(
+                    catalog, '{}\n{}\n{}'.format(spec.get('goal', spec['title']), item['goal'], item['role']),
+                    missing or [item['role']], item['deliverables'])
             except (OSError, ValueError) as exc:
                 warnings.append('Role recommendations unavailable: ' + str(exc))
             gaps.append(gap)

@@ -89,6 +89,9 @@ evidence 必须是非空映射，记录实际测试、产物、结果和未验�
 ```sh
 agent-team --project /project --platform codex role catalog
 agent-team --project /project --platform codex role catalog --source /path/to/agency-agents
+agent-team --project /project role recommend --query '帮我排查慢 SQL，优化数据库索引'
+agent-team --project /project role recommend --query '帮我排查慢 SQL，优化数据库索引' \
+  --assessment /tmp/role-assessment.json
 agent-team --project /project role recommend --capability api-development --deliverable 接口实现
 agent-team role generate order-expert --name '订单领域专家' \
   --capability orders --deliverable '订单实现' > /tmp/order-expert.json
@@ -98,7 +101,11 @@ agent-team --project /project --platform codex role install /tmp/order-expert.js
 
 先扫描当前宿主证据和本地角色，再参考可选来源目录及内置角色草案。`role generate` 生成可编辑的确定性初稿，主 Agent 可根据业务完善 prompt 后预览安装。Agency-Agents 通过用户已有 checkout 接入，不是运行依赖，不执行其脚本，也不自动下载仓库。支持角色 Markdown/frontmatter 和 Codex TOML。自定义可信社区库也可通过 `--source` 传入本地目录。
 
-推荐以能力、交付物、平台和可信度加权，最多 Top 3。角色状态明确区分：
+**对话入口默认用宿主 LLM 做语义推荐**：`--query` 返回全部平台兼容候选及评估契约，当前 Agent 理解自然语言、跨语言与职责关联后，提交 `--assessment` 得到经过结构校验的 Top 3。无需额外模型服务或 API Key。完整格式见 [语义角色推荐](../agent_team/skill/references/role-matching.md)。没有 assessment 时返回的是待评估请求，不冒充语义匹配结果；没有合适角色时允许返回空列表。
+
+程序校验候选 ID、请求/候选指纹、有限评分及原文引用，保留目录中的来源和实际可调用状态。匹配理由和分数来自宿主判断，引用存在不代表语义一定正确。程序不执行候选 Prompt，也不自动安装或委派。
+
+仅传 `--capability` 的旧调用保持兼容：仍按精确标签，以能力、交付物、平台和可信度加权返回列表。语义请求里的 `exact_fallback` 是这个旧算法的结果，不能替代宿主评估。角色状态明确区分：
 
 | 状态 | 含义 |
 | --- | --- |

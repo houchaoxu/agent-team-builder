@@ -187,6 +187,11 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual([gap['capabilities'] for gap in execution['capability_gaps']], [['security'], ['database']])
         self.assertTrue(all(len(gap['recommendations']) <= 3 for gap in execution['capability_gaps']))
         self.assertIn('role recommend', execution['capability_gaps'][0]['next_steps'][0])
+        semantic = execution['capability_gaps'][1]['semantic_request']
+        self.assertEqual(semantic['status'], 'awaiting_host_assessment')
+        self.assertTrue(semantic['candidates'])
+        self.assertIn(existing['goal'], semantic['query'])
+        self.assertEqual(semantic['exact_fallback'], [])
         # The same unknown role does not trigger team or catalog reads for simple work.
         with patch('agent_team.runtime.read_yaml', side_effect=AssertionError('unexpected read')):
             simple = plan_task(self.root, self.spec(10, [unknown]))
