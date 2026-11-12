@@ -275,6 +275,8 @@ def install_role(root, role, platform="generic", approved=False, host=None):
               "path": rendered["path"], "permissions": ["write project role file", "update project team registry"],
               "content": rendered["content"], "approved": approved is True,
               "installed": False, "status": status["status"], "evidence": status["evidence"]}
+    if "upstream" in role:
+        result["upstream"] = role["upstream"]
     if approved is not True:
         result["action"] = "preview"
         return result
@@ -303,6 +305,10 @@ def install_role(root, role, platform="generic", approved=False, host=None):
                        "deliverables": _strings(role.get("deliverables"), "deliverables"),
                        "platforms": _strings(role.get("platforms", list(_ROLE_DIRS)), "platforms"),
                        "status": "installed"})
+        if "upstream" in role:
+            member["upstream"] = role["upstream"]
+        else:
+            member.pop("upstream", None)
         if "prompt" in member:
             member["prompt"] = role["prompt"]
         if "description" in role:

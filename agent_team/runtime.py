@@ -128,15 +128,19 @@ def plan_task(root, spec, host=None):
             gap = {'work_item_id': item['id'], 'role': item['role'],
                    'capabilities': missing, 'recommendations': [],
                    'next_steps': ['Use CLI role recommend --query <task goal>, then submit host --assessment',
-                                  'Use CLI role generate <id> --name <name> --capability <required capability>']}
+                                  'If existing agents do not fit, use role recommend --library agency --query <task goal>',
+                                  'Inspect selected roles with role show ID --library agency; install only within user authorization',
+                                  'Use role generate only if no suitable existing or library role can be found']}
             # Role discovery is loaded only when the task has an actual capability gap.
             from .marketplace import build_catalog, recommend_roles
-            from .recommendation import semantic_request
+            from .recommendation import capability_card, compact_request
             try:
                 catalog = build_catalog(root, config.get('platform', 'generic'), host=host)
-                gap['recommendations'] = recommend_roles(catalog, missing or [item['role']], item['deliverables'], limit=3)
-                gap['semantic_request'] = semantic_request(
-                    catalog, '{}\n{}\n{}'.format(spec.get('goal', spec['title']), item['goal'], item['role']),
+                gap['recommendations'] = [capability_card(role) for role in
+                                          recommend_roles(catalog, missing or [item['role']], item['deliverables'], limit=3)]
+                gap['semantic_request'] = compact_request(
+                    [role for role in catalog if role.get('source') not in ('builtin', 'generated')],
+                    '{}\n{}\n{}'.format(spec.get('goal', spec['title']), item['goal'], item['role']),
                     missing or [item['role']], item['deliverables'])
             except (OSError, ValueError) as exc:
                 warnings.append('Role recommendations unavailable: ' + str(exc))

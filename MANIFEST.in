@@ -1,0 +1,2 @@
+include scripts/build_agency_index.py
+global-exclude *.py[cod] .DS_Store

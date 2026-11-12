@@ -86,15 +86,19 @@ class CLITests(unittest.TestCase):
 
     def test_semantic_recommendation_request_and_host_assessment(self):
         self.invoke("init")
+        role = self.invoke("role", "generate", "security-specialist", "--name", "Security Specialist",
+                           "--capability", "security")
+        profile = self.write("security.json", role)
+        self.invoke("role", "install", profile, "--approve")
         query = "检查这段代码有没有安全漏洞"
         request = self.invoke("role", "recommend", "--query", query)
         self.assertEqual(request["status"], "awaiting_host_assessment")
         data = {"request_id": request["request_id"], "matches": [{
-            "id": "code-reviewer", "relevance": .9, "reason": "角色负责安全与正确性审查",
+            "id": "security-specialist", "relevance": .9, "reason": "角色负责安全与正确性审查",
             "evidence": [{"field": "capabilities", "quote": "security"}]}]}
         path = self.write("assessment.json", data)
         result = self.invoke("role", "recommend", "--query", query, "--assessment", path)
-        self.assertEqual(result["recommendations"][0]["id"], "code-reviewer")
+        self.assertEqual(result["recommendations"][0]["id"], "security-specialist")
         self.assertIn("error", self.invoke("role", "recommend", "--query", "其他需求",
                                           "--assessment", path, success=False))
         self.assertIn("error", self.invoke("role", "recommend", "--assessment", path, success=False))
@@ -111,7 +115,7 @@ class CLITests(unittest.TestCase):
         completed = subprocess.run([sys.executable, "-m", "agent_team", "--version"],
                                    capture_output=True, text=True, check=False)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("2.4.0", completed.stdout)
+        self.assertIn("2.5.0", completed.stdout)
         destination = self.root / "exported-skill"
         self.invoke("skill", str(destination))
         self.assertTrue((destination / "SKILL.md").is_file())

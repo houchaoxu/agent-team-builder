@@ -50,7 +50,15 @@ host 格式与 adapter 相同；host.native_subagents 只有显式布尔 true �
 `generate_role(role_id, name, capabilities, deliverables=None) -> dict`；
 `install_role(root, role, platform='generic', approved=False, host=None) -> dict`。
 role `{id,name,capabilities:[str],deliverables:[str],prompt,source,platforms:[str],...}`。
-catalog 来源当前宿主、项目成员、本地源目录（可选 Agency-Agents checkout，不自动联网拉取）及内置 proposed 角色。状态 available/installable/proposed/unavailable 与证据分离。安装预览先给来源/目标/权限/内容，approved 才写入，绝不修改全局配置，幂等避免覆盖已有内容。install 后只有 host 可验证才 available。
+catalog 来源当前宿主、项目成员、本地源目录及内置 proposed 角色。自然语言推荐默认先评估现有已安装角色，排除内置草案；不足时显式使用 Agency 后备索引。状态 available/installable/proposed/unavailable 与证据分离。安装预览先给来源/目标/权限/内容，已有授权或用户确认后 approved 才写入，绝不修改全局配置，幂等避免覆盖已有内容。install 后只有 host 可验证才 available。
+
+### 2.5.0 后备素材库与推荐边界
+
+- [msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents) 是 MIT 许可的后备素材来源。内置轻量索引保留真实固定 revision、角色路径、内容 hash 与版权署名；维护者从已有 checkout 通过 `scripts/build_agency_index.py` 生成增量索引，用户无需 clone 或运行维护脚本。
+- `role recommend --query TEXT` 使用本地关键词及中英文场景别名召回，不提供 embedding 或外部模型 API。`--library agency` 切换后备索引；可重复 `--term` 补义，`--limit` 默认 6、范围 1..20，`--offset` 默认 0。能力卡不包含完整 prompt，由宿主 LLM 判断语义。最多两次扩大检索后仍无合适候选时如实说明，不能把零召回当作语义上不存在。
+- `--assessment` 绑定完整目录版本/状态指纹及原查询参数，保留候选、评分、引用等校验；不把宿主判断冒充程序证明。仅 `--capability` 的旧精确标签算法与本地 `--source` 接入保持兼容。
+- `role show ID` 按需读取完整 profile；`--library agency` 仅下载所选固定 revision 角色，hash 校验后缓存。`role install --agency ID` 复用缓存；show/install 的 `--offline` 禁止联网，缺少有效缓存时失败。安装默认预览，只有 `--approve` 才写入；用户已授权自动补位安装时可在范围内连续完成。
+- 角色安装、宿主发现配置、当前会话原生可调用性、实际执行是不同状态。不能承诺安装后立即产生可调用原生 Agent。当前任务不以未经测量的准确率或 Token 节省比例作为验收证据。
 
 ## 验收
 

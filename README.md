@@ -43,7 +43,7 @@ Prefer one installation across projects? Add **“Install it as a personal Skill
 | 🧠 | **A team that persists** | Reuse your project's team in the next session. |
 | 🎯 | **The right amount of help** | Small tasks stay with one agent; complex tasks get focused assistance. |
 | 🤝 | **Clear ownership** | Dependencies and file boundaries keep parallel work coordinated. |
-| 🧩 | **Roles that fit your request** | Your agent uses its own LLM to match meaning across languages and role descriptions, with reasons and source quotes. |
+| 🧩 | **Roles that fit your request** | Your agent evaluates installed roles first, then searches a built-in fallback library when needed, using its own LLM to judge the candidates. |
 | 📚 | **Project memory** | Keep useful decisions and lessons, with sources and revision history. |
 | 📊 | **Honest execution records** | Track real outcomes and available metrics; unknown values stay unknown. |
 
@@ -53,7 +53,7 @@ Prefer one installation across projects? Add **“Install it as a personal Skill
 | --- | --- |
 | “Fix this button's color.” | A small change with one agent. |
 | “Build the API and frontend.” | A plan, suitable roles, file ownership, and verification. |
-| “Find a database specialist.” | Local role discovery and capability recommendations. |
+| “Find and install a database specialist if our team needs one.” | Evaluate existing roles, find suitable library material, preview it, and install within your authorization. |
 | “Remember this compatibility rule.” | A sourced project note for future work. |
 
 These are usage examples. Actual delegation depends on the tools and permissions available in your current host.
@@ -70,6 +70,12 @@ The Skill is the user-facing workflow. An optional Python engine handles configu
 | **Basic collaboration** | No Python available? Use host file tools for team instructions and Markdown records. This mode does not provide the engine's locking or validation guarantees. |
 
 Project data stays in `.agent-team/`. Existing project instructions are preserved outside the managed entry block. Installation does not change system Python or your global `PATH`.
+
+### A fallback library, loaded as needed
+
+Version 2.5.0 includes a compact index of [Agency-Agents](https://github.com/msitarzewski/agency-agents) role material. Your agent first checks existing installed roles. If they leave a capability gap, local keyword retrieval and English/Chinese scenario aliases select up to six capability cards by default; your host LLM judges their meaning and fit. This uses no embeddings, extra model API, or repository clone. An empty retrieval result can require broader terms or another page; it does not prove a suitable role is absent.
+
+Only a selected role's full profile is downloaded, from a pinned revision, checked against its indexed hash, and cached for reuse. Installation follows a preview and requires existing authorization or your confirmation. A request to automatically find and install missing specialists provides that authorization within its stated scope. Installing a profile does not prove the current host can immediately call a new native agent. The library is MIT-licensed upstream material; attribution and pinned provenance travel with the index and profiles. See the [role workflow](agent_team/skill/references/role-matching.md) for details.
 
 ## 🌍 Bring your agent
 

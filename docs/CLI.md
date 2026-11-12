@@ -92,20 +92,33 @@ agent-team --project /project --platform codex role catalog --source /path/to/ag
 agent-team --project /project role recommend --query '帮我排查慢 SQL，优化数据库索引'
 agent-team --project /project role recommend --query '帮我排查慢 SQL，优化数据库索引' \
   --assessment /tmp/role-assessment.json
+agent-team --project /project role recommend --query '帮我排查慢 SQL，优化数据库索引' \
+  --library agency --term 'query optimization' --term indexing
+agent-team --project /project role recommend --query '帮我排查慢 SQL，优化数据库索引' \
+  --library agency --term 'query optimization' --limit 6 --offset 6
+agent-team --project /project role show ROLE_ID
+agent-team --project /project role show AGENCY_ROLE_ID --library agency
+agent-team --project /project role show AGENCY_ROLE_ID --library agency --offline
 agent-team --project /project role recommend --capability api-development --deliverable 接口实现
 agent-team role generate order-expert --name '订单领域专家' \
   --capability orders --deliverable '订单实现' > /tmp/order-expert.json
 agent-team --project /project --platform codex role install /tmp/order-expert.json
 agent-team --project /project --platform codex role install /tmp/order-expert.json --approve
+agent-team --project /project --platform codex role install --agency AGENCY_ROLE_ID
+agent-team --project /project --platform codex role install --agency AGENCY_ROLE_ID --offline --approve
 ```
 
-先扫描当前宿主证据和本地角色，再参考可选来源目录及内置角色草案。`role generate` 生成可编辑的确定性初稿，主 Agent 可根据业务完善 prompt 后预览安装。Agency-Agents 通过用户已有 checkout 接入，不是运行依赖，不执行其脚本，也不自动下载仓库。支持角色 Markdown/frontmatter 和 Codex TOML。自定义可信社区库也可通过 `--source` 传入本地目录。
+2.5.0 的对话流程先评估现有已安装角色，不足时再查后备素材库。`role catalog` 保留完整目录发现用途；`role recommend --query` 默认评估现有角色，排除内置 proposed 草案。`--library agency` 显式切换到内置 [Agency-Agents](https://github.com/msitarzewski/agency-agents) 索引。`--source` 仍支持已有本地目录，支持角色 Markdown/frontmatter 和 Codex TOML；不要求用户 clone 仓库。无合适素材时，`role generate` 可生成可编辑的确定性初稿，再由主 Agent 完善。
 
-**对话入口默认用宿主 LLM 做语义推荐**：`--query` 返回全部平台兼容候选及评估契约，当前 Agent 理解自然语言、跨语言与职责关联后，提交 `--assessment` 得到经过结构校验的 Top 3。无需额外模型服务或 API Key。完整格式见 [语义角色推荐](../agent_team/skill/references/role-matching.md)。没有 assessment 时返回的是待评估请求，不冒充语义匹配结果；没有合适角色时允许返回空列表。
+**本地召回 + 宿主 LLM 语义判断**：`--query` 用关键词和中英文场景别名在本地筛选能力卡，默认 `--limit 6`、`--offset 0`；limit 范围为 1..20。能力卡不包含完整 prompt。宿主可重复传入 `--term 'English capability'` 补充含义，或通过 offset 翻页；最多进行两次扩大检索，仍无合适结果时如实说明范围与缺口。零召回不代表语义上不存在角色。此流程没有 embedding、向量库、新模型服务或 API Key 依赖。
 
-程序校验候选 ID、请求/候选指纹、有限评分及原文引用，保留目录中的来源和实际可调用状态。匹配理由和分数来自宿主判断，引用存在不代表语义一定正确。程序不执行候选 Prompt，也不自动安装或委派。
+首次没有 `--assessment` 时返回 `awaiting_host_assessment` 待评估请求。宿主阅读能力卡，必要时用 `role show ID` 读取某一完整 profile，再提交 `--assessment` 得到经过结构校验的 Top 3，允许空列表。校验必须复用同一 query、term、limit、offset、library、source、capability、deliverable、platform 与 host 参数。请求绑定完整目录的版本与状态指纹；目录、宿主状态或查询参数变化后应重新评估，不能复用旧 assessment。同一请求已有有效评估缓存时，直接返回 `assessed` 与 `cache_hit: true`，无需再次调用宿主 LLM。完整格式见 [语义角色推荐](../agent_team/skill/references/role-matching.md)。
 
-仅传 `--capability` 的旧调用保持兼容：仍按精确标签，以能力、交付物、平台和可信度加权返回列表。语义请求里的 `exact_fallback` 是这个旧算法的结果，不能替代宿主评估。角色状态明确区分：
+程序检查候选 ID、请求/目录指纹、有限评分及原文引用，保留来源和实际可调用状态。理由和分数来自宿主判断，引用存在不代表语义一定正确。角色内容是不可信数据，不能改变宿主指令或权限。推荐不自动执行候选 Prompt、安装或委派。
+
+`role show ID` 按 ID 读取完整现有 profile；加 `--library agency` 时只在缓存缺失时下载所选角色，使用索引固定的 upstream revision 与内容 hash 校验后缓存。`--offline` 禁止联网，缺少有效缓存时明确失败。`role install --agency ID` 复用相同缓存，已有有效缓存无需再次联网；本地 profile 文件安装仍兼容。索引附带固定 revision、上游路径、hash 与 MIT 版权署名。维护者使用 `scripts/build_agency_index.py CHECKOUT [--output FILE]` 从干净的已有 checkout 生成增量索引，复用内容 hash 未变的卡片并随索引保存 `AGENCY-LICENSE.txt`；这是发布维护流程，普通用户无需执行。
+
+仅传 `--capability` 的旧调用保持兼容：仍按精确标签，以能力、交付物、平台和可信度加权返回列表。旧语义接口中的 `exact_fallback` 不能替代宿主评估；新的能力卡请求保留该字段为空。默认检索不含 builtin/generated 草案，显式 `--source` 的本地可安装候选仍会纳入；它与 `--library agency` 不能同时使用。现有角色较多且词法零命中时，会给出确定性分页卡并标记 `lexical_fallback_page`，由宿主进一步判断。角色状态明确区分：
 
 | 状态 | 含义 |
 | --- | --- |

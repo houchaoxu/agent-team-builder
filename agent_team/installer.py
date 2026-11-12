@@ -48,6 +48,14 @@ def _files(source_root=None):
         if path.is_symlink():
             raise ValueError("Runtime source contains a symlink: {}".format(path))
         files["scripts/runtime/agent_team/" + path.name] = path.read_bytes()
+    data = package / "data"
+    if data.exists():
+        _no_links(data)
+        for path in data.rglob("*"):
+            if path.is_symlink():
+                raise ValueError("Runtime data contains a symlink: {}".format(path))
+            if path.is_file():
+                files["scripts/runtime/agent_team/data/" + path.relative_to(data).as_posix()] = path.read_bytes()
     if "SKILL.md" not in files or "scripts/run.py" not in files:
         raise ValueError("Incomplete Skill source")
     return files

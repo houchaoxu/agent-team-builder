@@ -31,8 +31,10 @@ description: 通过对话安装或启用 Agent Team Builder，为项目初始化
 
 ## 能力扩展与记忆
 
-需要推荐角色或计划出现能力缺口时，默认用宿主 LLM 理解用户原话、角色职责与交付物，按 [语义角色推荐](references/role-matching.md) 完成候选评估与校验。不要求中英文或能力标签精确相等，也不把精确匹配为空当作没有合适角色。程序只准备资料、校验评估，不自动调用外部模型 API。
+需要推荐角色或计划出现能力缺口时，按 [语义角色推荐](references/role-matching.md) 先评估现有已安装角色；不足时由 Agent 使用 `role recommend --library agency --query ...` 查内置 Agency-Agents 后备素材索引。程序用本地关键词及中英文场景别名默认筛出最多 6 张能力卡，不发送全部角色正文。宿主 LLM 判断跨语言含义、职责与交付物；不需要 embedding、向量库或新模型 API。
 
-无合适角色时才考虑 `role generate`。安装前用 `role install` 预览来源、内容和路径，仅在已有授权或用户确认后加 `--approve`。安装只写项目文件；当前会话是否重载成功仍须通过宿主实际验证。
+零召回不等于语义上不存在。按需补充中英文 `--term` 或用 `--offset` 翻页，最多两次扩大检索，再如实报告仍未找到的缺口。只对待选角色执行 `role show ID`；Agency 角色加 `--library agency`，按固定 revision 下载、hash 校验并缓存，无需 clone 仓库或让用户手动运行 Python。缓存可供 `--offline` 复用。
+
+确认素材仍不足时才考虑 `role generate`。安装前用 `role install --agency ID` 或本地 profile 文件预览来源、内容和路径，仅在已有授权或用户确认后加 `--approve`。用户已要求自动找并安装缺失角色时，在其范围内连续完成，不逐个重复询问；没有安装授权时不能直接写入。推荐及下载缓存不授予安装权限。安装只写项目文件；角色是否被宿主发现、当前会话是否可原生调用仍须实际验证。
 
 任务真实执行后，用 `task update` 保存结果和验收 evidence；无法取得的 Token/时长保持 null。只对可长期复用、有来源的信息调用 `memory add`，架构/决策项按其确认要求处理。统计不能把缺测数据当零，也不能声称本系统保证 KV Cache 命中。

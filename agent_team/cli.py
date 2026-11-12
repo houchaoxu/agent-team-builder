@@ -9,7 +9,7 @@ from . import __version__
 from .installer import export_bundle, skill_source
 from .adapters import capabilities, detect_platform
 from .marketplace import build_catalog, generate_role, install_role, recommend_roles
-from .recommendation import apply_assessment, semantic_request
+from .recommendation import assessed_request, compact_request, _digest
 from .runtime import (add_memory, analytics, get_task, list_tasks, plan_task,
                       read_memory, update_task)
 from .storage import bootstrap, discover_root, read_yaml, safe_path, validate_team
@@ -50,13 +50,24 @@ def parser():
     recommend.add_argument("--assessment", type=Path, help="宿主 LLM 的语义评估 YAML/JSON")
     recommend.add_argument("--deliverable", action="append", default=[])
     recommend.add_argument("--source", action="append", type=Path, default=[])
+    recommend.add_argument("--library", choices=("installed", "agency"), default="installed")
+    recommend.add_argument("--term", action="append", default=[], help="宿主补充的检索词，可用英文能力短语")
+    recommend.add_argument("--limit", type=int, default=6, help="每次交给宿主的能力卡数量，1..20")
+    recommend.add_argument("--offset", type=int, default=0, help="扩大候选检索的分页偏移")
+    show_role = role_sub.add_parser("show", help="仅加载选中角色的完整资料")
+    show_role.add_argument("id")
+    show_role.add_argument("--source", action="append", type=Path, default=[])
+    show_role.add_argument("--library", choices=("installed", "agency"), default="installed")
+    show_role.add_argument("--offline", action="store_true")
     gen = role_sub.add_parser("generate", help="生成角色草案 JSON 到标准输出")
     gen.add_argument("id")
     gen.add_argument("--name", required=True)
     gen.add_argument("--capability", action="append", required=True)
     gen.add_argument("--deliverable", action="append", default=[])
     install = role_sub.add_parser("install", help="默认预览；--approve 才写项目内文件")
-    install.add_argument("profile", type=Path)
+    install.add_argument("profile", type=Path, nargs="?")
+    install.add_argument("--agency", metavar="ID", help="按需获取并安装 Agency-Agents 角色")
+    install.add_argument("--offline", action="store_true", help="仅使用已校验的本地缓存")
     install.add_argument("--approve", action="store_true")
     memory = sub.add_parser("memory", help="有来源的项目知识")
     memory_sub = memory.add_subparsers(dest="action", required=True)
@@ -122,15 +133,66 @@ def dispatch(args):
         if args.action == "generate":
             return generate_role(args.id, args.name, args.capability, args.deliverable)
         if args.action == "install":
-            return install_role(root, read_yaml(args.profile), platform, args.approve, host)
+            if bool(args.profile) == bool(args.agency):
+                raise ValueError("Provide one profile file or --agency ID.")
+            if args.agency:
+                from .agency import fetch_role
+                profile = fetch_role(root, args.agency, platform=platform, offline=args.offline)
+            else:
+                profile = read_yaml(args.profile)
+            return install_role(root, profile, platform, args.approve, host)
         catalog = build_catalog(root, platform, sources=args.source or None, host=host)
         if args.action == "catalog":
             return catalog
+        if args.action == "show":
+            if args.library == "agency":
+                from .agency import fetch_role
+                return fetch_role(root, args.id, platform=platform, offline=args.offline)
+            role = next((role for role in catalog if role["id"] == args.id), None)
+            if role is None:
+                raise ValueError("Unknown role: " + args.id)
+            return role
         if args.query is not None:
-            request = semantic_request(catalog, args.query, args.capability, args.deliverable)
-            return apply_assessment(catalog, request, read_yaml(args.assessment)) if args.assessment else request
+            if args.library == "agency":
+                from .agency import load_index, search_roles
+                if args.source:
+                    raise ValueError("Use --source for local discovery or --library agency, not both.")
+                if not 1 <= args.limit <= 20 or args.offset < 0:
+                    raise ValueError("limit must be 1..20 and offset must be non-negative.")
+                index = load_index()
+                # Do not offer an upstream profile already present in the project
+                # or user directories under a different local identifier.
+                installed = [role for role in catalog if role.get("source") not in ("builtin", "generated")]
+                reusable = [role for role in installed if role.get("platform_compatible") is not False]
+                names = {role["name"].strip().casefold() for role in reusable}
+                paths = {role.get("upstream", {}).get("path") for role in reusable}
+                identifiers = {role["id"] for role in reusable}
+                excluded = {card["id"] for card in index["roles"]
+                            if card["name"].strip().casefold() in names or card["path"] in paths
+                            or card["id"] in identifiers}
+                candidates = search_roles(args.query, terms=args.term + args.capability + args.deliverable,
+                                          limit=args.limit, offset=args.offset, platform=platform,
+                                          excluded_ids=excluded)
+                context = {"library": "agency", "revision": index["revision"],
+                           "index_digest": _digest(index), "installed_digest": _digest(installed),
+                           "total_roles": len(index["roles"]), "offset": args.offset,
+                           "platform": platform, "host": capabilities(platform, host)}
+                request = compact_request(candidates, args.query, args.capability, args.deliverable,
+                                          terms=args.term, limit=args.limit, context=context)
+                catalog = candidates
+            else:
+                # Generated drafts remain available through catalog and the old
+                # exact interface, but cannot displace existing installed agents.
+                catalog = [role for role in catalog if role.get("source") not in ("builtin", "generated")]
+                request = compact_request(catalog, args.query, args.capability, args.deliverable,
+                                          terms=args.term, limit=args.limit, offset=args.offset,
+                                          context={"platform": platform, "host": capabilities(platform, host)})
+            return assessed_request(root, catalog, request,
+                                    read_yaml(args.assessment) if args.assessment else None)
         if args.assessment or not args.capability:
             raise ValueError("Use --query for semantic matching, or --capability for exact matching.")
+        if args.library != "installed" or args.term or args.offset or args.limit != 6:
+            raise ValueError("Library retrieval options require --query.")
         return recommend_roles(catalog, args.capability, args.deliverable)
     if args.command == "memory":
         if args.action == "show":

@@ -103,7 +103,7 @@ class InstallerTests(unittest.TestCase):
                                  "--version"], cwd=str(self.root), capture_output=True, text=True,
                                 env=dict(os.environ, PYTHONPATH=str(self.root / "invalid")))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("2.4.0", result.stdout)
+        self.assertIn("2.5.0", result.stdout)
 
     def test_missing_dependencies_are_structured_without_setup(self):
         with patch.object(runner, "locations", return_value=(self.destination, self.root)), \
