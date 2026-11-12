@@ -101,7 +101,7 @@ class InstallerTests(unittest.TestCase):
         export_bundle(self.destination)
         result = subprocess.run([sys.executable, str(self.destination / "scripts/run.py"),
                                  "--version"], cwd=str(self.root), capture_output=True, text=True,
-                                env={"PYTHONPATH": str(self.root / "invalid")})
+                                env=dict(os.environ, PYTHONPATH=str(self.root / "invalid")))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("2.4.0", result.stdout)
 
