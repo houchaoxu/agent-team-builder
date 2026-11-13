@@ -2,7 +2,9 @@
 
 以下命令仅面向 Agent。用户通过对话描述需求，由 Agent 生成输入并执行。优先使用随 Skill 的 `<python> <skill>/scripts/run.py` 替代下文的 `agent-team`；不存在全局 CLI 时也可正常工作。环境准备见 installation.md。
 
-`agent-team --project /project --platform codex init` 注册轻量入口。之后简单任务直接完成，不运行 `doctor` 或扫描角色。
+首次启用用 `agent-team --project /project --platform codex init` 注册轻量入口。已有团队的新会话直接复用 `.agent-team/team.yaml`，无需再执行 `init`；只有明确的升级或修复才按需刷新入口。
+
+宿主加载项目入口后，每个新任务先用需求和当前上下文判断协作收益，不要求用户说出工具名称。简单任务直接完成，不加载本 Skill、团队或角色，不运行 `plan`、`status`、`doctor` 或扫描角色。明确的安装、诊断或角色管理请求仍按其工作流处理。
 
 对复杂任务，主 Agent 分析实际工作并保存 YAML：
 
@@ -49,7 +51,7 @@ agent-team --project /project --host /tmp/current-host.yaml plan /tmp/spec.yaml
 agent-team --project /project task update TASK_ID running
 ```
 
-读取返回的 execution；仅加载选择角色。按 batches 调度并等待每批真实结果，不跨依赖提前写文件。宿主实际调用失败时报告、调整或顺序降级，不能把 capability 声明当成启动成功。CLI 中的 running 只是状态记录，不是进程证明。
+读取返回的 execution；仅加载选择角色。现有成员能覆盖任务时不扫描 Marketplace，有实际能力缺口时才按 role-matching.md 检索补齐；规划不会重建团队或自动安装角色。按 batches 调度并等待每批真实结果，不跨依赖提前写文件。宿主实际调用失败时报告、调整或顺序降级，不能把 capability 声明当成启动成功。CLI 中的 running 只是状态记录，不是进程证明。
 
 完成后保存验收映射并执行：
 

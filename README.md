@@ -32,7 +32,7 @@ Your agent installs the complete Skill, prepares its internal tools, and enables
 
 Then ask for what you want to build:
 
-> Add an order management module. Bring in specialists where useful, and review the result.
+> Add an order management module with an API and frontend, and verify the result.
 
 Prefer one installation across projects? Add **“Install it as a personal Skill.”** Project installation is the default. If your host hasn't discovered the Skill yet, your agent will explain whether a new session is needed.
 
@@ -70,6 +70,8 @@ The Skill is the user-facing workflow. An optional Python engine handles configu
 | **Basic collaboration** | No Python available? Use host file tools for team instructions and Markdown records. This mode does not provide the engine's locking or validation guarantees. |
 
 Project data stays in `.agent-team/`. Existing project instructions are preserved outside the managed entry block. Installation does not change system Python or your global `PATH`.
+
+Once your host loads the lightweight project entry, each new session or task starts with a quick collaboration decision. **Just describe your task; you don't need to mention Agent Team Builder.** Simple work runs directly without loading the Skill or team. Work that benefits from collaboration loads the existing team and selected roles; Marketplace is consulted only for an actual capability gap. Resuming does not run initialization, diagnostics, or role installation, and no unconditional startup hook is added. Automatic routing depends on the host loading the entry; the engine cannot intercept opening a project.
 
 ### A fallback library, loaded as needed
 

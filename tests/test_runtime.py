@@ -56,11 +56,33 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(entry.read_text(encoding='utf-8'), original)
 
     def test_simple_plan_does_not_load_configuration_or_memory(self):
-        with patch('agent_team.runtime.read_yaml', side_effect=AssertionError('unexpected read')):
+        with patch('agent_team.runtime.read_yaml', side_effect=AssertionError('unexpected read')), \
+                patch('agent_team.runtime.read_memory', side_effect=AssertionError('unexpected memory read')), \
+                patch('agent_team.marketplace.build_catalog', side_effect=AssertionError('unexpected role scan')):
             record = plan_task(self.root, self.spec(20))
         self.assertEqual(record['execution']['mode'], 'single_agent')
         self.assertEqual(record['execution']['agents'], [])
         self.assertTrue(all(v is None for v in record['metrics'].values()))
+
+    def test_complex_tasks_load_only_selected_roles_without_marketplace(self):
+        member = self.team['team']['members'][0]
+        member['definition'] = '.agent-team/members/implementer.md'
+        (self.root / member['definition']).write_text('Selected implementation guidance.', encoding='utf-8')
+        # A missing definition must not be opened when its member is not selected.
+        self.team['team']['members'].append({
+            'id': 'unused', 'role': 'Unused role',
+            'definition': '.agent-team/members/not-installed.md'})
+        write_yaml(self.root / '.agent-team/team.yaml', self.team)
+        with patch('agent_team.marketplace.build_catalog', side_effect=AssertionError('unexpected role scan')), \
+                patch('agent_team.runtime.read_memory', side_effect=AssertionError('unexpected memory read')), \
+                patch('agent_team.runtime.read_yaml', wraps=read_yaml) as reads:
+            record = plan_task(self.root, self.spec(items=[self.item('a', 'src/a')]))
+        self.assertEqual(record['execution']['capability_gaps'], [])
+        self.assertEqual(len(record['execution']['handoffs']), 1)
+        self.assertIn('Selected implementation guidance.', record['execution']['handoffs'][0]['prompt'])
+        self.assertEqual({call.args[0].resolve() for call in reads.call_args_list}, {
+            (self.root / '.agent-team/team.yaml').resolve(),
+            (self.root / '.agent-team/orchestration.yaml').resolve()})
 
     def test_modes_and_conservative_execution(self):
         items = [self.item('a', 'src/a'), self.item('b', 'src/b')]

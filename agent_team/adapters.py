@@ -78,11 +78,13 @@ def entry_path(platform):
 def entry_text(platform):
     _platform(platform)
     text = ("<!-- agent-team-runtime:begin -->\n"
-            "Default to one agent. Handle simple tasks without loading the full team configuration.\n"
-            "For complex tasks, use the installed agent-team-runtime Skill and read its SKILL.md for the workflow contract.\n"
-            "The agent handles its bundled tools and environment setup; users only describe their goals in conversation.\n"
-            "Reuse the existing .agent-team/team.yaml team across sessions; do not recreate it.\n"
-            "Then load only the roles and task records needed for the current task.\n"
+            "At each new session or task, assess collaboration value from the request and available context; users need not mention Agent Team Builder.\n"
+            "Default to one agent. Handle simple tasks directly, without loading the full team configuration or Skill.\n"
+            "Do not run setup, init, status, doctor, or role scans merely because a session started.\n"
+            "For complex tasks with clear collaboration value, use the installed agent-team-runtime Skill and read its SKILL.md for the workflow contract.\n"
+            "Reuse the existing .agent-team/team.yaml team across sessions; do not recreate it or run init to resume.\n"
+            "Load only selected roles and relevant task records; consult Marketplace only for a demonstrated role or capability gap.\n"
+            "Initialize only for first enablement; preserve damaged configuration and report it. Explicit installation, upgrade, repair, or diagnostic requests follow their own workflow.\n"
             "Delegate only within existing user authorization and host restrictions, with explicit host capability evidence.\n"
             "Locate agent-team-runtime through the host's discovered Skills.\n"
             "For a project installation, read .agents/skills/agent-team-runtime/SKILL.md; in this source repository, read agent_team/skill/SKILL.md.\n"
