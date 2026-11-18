@@ -75,9 +75,22 @@ Skill 提供面向用户的工作流程；可选的 Python 引擎负责配置校
 
 ### 按需加载的后备素材库
 
-2.5.0 内置 [Agency-Agents](https://github.com/msitarzewski/agency-agents) 的轻量角色索引。Agent 先检查已安装角色；有能力缺口时，再用本地关键词和中英文场景别名默认筛出最多 6 张能力卡，交给宿主 LLM 判断含义与适用性。无需向量库、新模型 API 或 clone 仓库。检索为空时可能需要补充词义或翻页，不能直接断言没有合适角色。
+2.6.0 内置 [Agency-Agents](https://github.com/msitarzewski/agency-agents) 的轻量角色索引。Agent 先检查已安装角色；有能力缺口时，再用本地关键词和中英文场景别名默认筛出最多 6 张能力卡，交给宿主 LLM 判断含义与适用性。无需向量库、新模型 API 或 clone 仓库。检索为空时可能需要补充词义或翻页，不能直接断言没有合适角色。
 
 选中后才按固定 revision 下载完整角色，校验索引中的 hash，并缓存复用。安装先预览，只在已有授权或用户确认后写入；用户已要求自动寻找并安装缺失专家时，可在该授权范围内连续完成。安装角色文件不代表当前宿主能立即调用新的原生 Agent。上游素材采用 MIT 许可证，索引和角色保留署名与固定版本来源。详细流程见[语义角色推荐](agent_team/skill/references/role-matching.md)。
+
+## 🔄 更新与通知
+
+**2.5.x 及更早安装需要先手动迁移一次。** 旧版没有更新模块，无法自动通知；告诉 Agent：“把 Agent Team Builder 迁移到支持更新的最新稳定版，先验证旧安装并备份。” Agent 会保留原安装范围、团队和个人角色。迁移后可直接说：
+
+- “检查 Agent Team Builder 有没有更新。”
+- “更新到最新稳定版，保留可回退备份。”
+- “30 天内别提醒更新。”或“关闭自动检查。”
+- “回退刚才的更新。”
+
+从 2.6.0 起，实际调用 Skill 内部 runner 后，默认每 7 天检查一次 [GitHub 稳定 Release](https://github.com/houchaoxu/agent-team-builder/releases)，同一版本只提醒一次。更新先预览、校验并备份，收到更新授权后才替换 Skill；本地修改导致冲突时保留原件并报告。宿主须先加载项目入口并实际使用 Skill；小任务不运行 runner，也不会为更新联网。没有常驻检查或启动钩子，检查失败不影响当前任务。关闭后完全不自动联网；主动要求立即检查可显式绕过关闭和静默，仅影响这一次检查。
+
+检查只读取官方 GitHub 公共发行信息，不上传需求、对话、项目文件或 token。也可在仓库点击 **Watch → Custom → Releases**，独立订阅发布通知。操作细节见[更新与回退](agent_team/skill/references/updates.md)。
 
 ## 🌍 带上你熟悉的 Agent
 

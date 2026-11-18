@@ -151,6 +151,38 @@ agent-team --project /project doctor
 
 记忆分 `project-context` / `architecture` / `decisions` / `experience`，只保存长期信息及其来源，避免重复；更新过期信息时保留修订历史，任务日志单独保存在 tasks。重要架构和决策写入需要确认。统计保留已知数据与覆盖率，存在缺测值时不冒充完整总量。`doctor` 为按需诊断，会读取完整索引和角色，不应在简单任务的每次会话执行。
 
+## 稳定发行与 Skill 更新
+
+正式稳定包由 `vMAJOR.MINOR.PATCH` tag 触发 `.github/workflows/release.yml`：Python 3.12 安装测试依赖、运行完整测试、核对 tag 与 `agent_team.__version__`，然后构建并发布 GitHub stable Release。非稳定 tag 或版本不匹配会失败。工作流不会自行创建 tag；创建 tag 与发布须有相应授权，并以实际通过测试的代码为基础。
+
+本地构建仅需标准库，不依赖 PyYAML：
+
+```sh
+python3 scripts/build_release.py --tag v2.6.0 --output-dir /tmp/agent-team-release
+```
+
+输出 `agent-team-runtime-skill.zip` 与 `agent-team-runtime-skill.zip.sha256`（sha256sum 格式）。ZIP 根固定为 `agent-team-runtime/`；内容由 `installer.export_bundle` 生成，排除缓存，并带 `.agent-team-install.json`。manifest 包含 `schema_version: 1`、固定 `repository: houchaoxu/agent-team-builder`、`version` 和 `{相对路径: SHA-256}` 的 `files`。checksum 用于下载完整性验证；来源仍须固定为官方 Release。
+
+更新命令由安装后 runner 或源码 CLI 路由，更新模块仅需标准库：
+
+```sh
+python3 /path/to/skill/scripts/run.py update status
+python3 /path/to/skill/scripts/run.py update check
+python3 /path/to/skill/scripts/run.py update check --force
+python3 /path/to/skill/scripts/run.py update configure --enabled false
+python3 /path/to/skill/scripts/run.py update configure --enabled true --snooze-days 30
+python3 /path/to/skill/scripts/run.py update apply
+python3 /path/to/skill/scripts/run.py update apply --approve
+python3 /path/to/skill/scripts/run.py update rollback BACKUP_ID
+python3 /path/to/skill/scripts/run.py update rollback BACKUP_ID --approve
+```
+
+`status` 读取本地状态；`check` 遵循默认 7 天间隔、禁用与静默设置。`--force` 明确对本次检查绕过上述限制，不改变持久偏好；`--snooze-days` 为 0..365，0 取消静默。apply / rollback 默认预览，已有对应用户授权时 Agent 才加 `--approve`，不重复机械确认。更新校验官方 ZIP、SHA-256 和 manifest，备份后替换当前 Skill；不覆盖本地修改、未知用户文件、项目团队或个人角色，不迁移安装 scope。回退使用更新返回的备份 ID。
+
+只有 runner 的实际业务命令会在 finally 阶段 best-effort 发起检查子进程；源码 CLI 不自动检查，runner 的环境检查、setup 和更新命令不递归触发。失败静默，不改变业务退出结果或 stdout JSON；可用新版本通过 stderr 的结构化提醒交由宿主 Agent 解释给用户，同一版本只提醒一次。不常驻、不注册无条件 hook，简单任务不调用 runner。禁用或静默时不自动联网。检查只访问官方公共 GitHub Release 信息，不上传需求、项目文件或 token。
+
+2.5.x 及更早安装没有更新模块或 manifest，不能自动收到通知。必须先按 [Skill 更新参考](../agent_team/skill/references/updates.md) 验证官方旧 bundle、完整备份并手动迁移一次；不要直接覆盖不同内容或伪造 manifest。迁移后才能使用上述按需提醒。普通用户通过自然语言操作，内部参数由 Agent 处理。
+
 ## 验证
 
 ```sh

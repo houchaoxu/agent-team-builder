@@ -1,11 +1,24 @@
 """Standard-library-only, self-contained Skill bundle installer."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
 import sys
 import tempfile
+import time
+
+from . import __version__
+
+MANIFEST_NAME = ".agent-team-install.json"
+REPOSITORY = "houchaoxu/agent-team-builder"
+
+
+def bundle_manifest(files):
+    return {"schema_version": 1, "repository": REPOSITORY, "version": __version__, "channel": "stable",
+            "installed_at": time.time(),
+            "files": {name: hashlib.sha256(content).hexdigest() for name, content in sorted(files.items())}}
 
 
 def skill_source(package_root=None):
@@ -36,6 +49,8 @@ def _files(source_root=None):
     files = {}
     for path in source.rglob("*"):
         relative = path.relative_to(source)
+        if relative.as_posix() == MANIFEST_NAME:
+            continue
         if any(part in ("__pycache__", ".cache") for part in relative.parts):
             continue
         if relative.parts[:2] == ("scripts", "runtime"):
@@ -65,6 +80,10 @@ def _same(destination, files):
     actual = {}
     for path in destination.rglob("*"):
         relative = path.relative_to(destination)
+        if relative.as_posix() == MANIFEST_NAME:
+            if path.is_symlink():
+                raise ValueError("Installation manifest cannot be a symlink")
+            continue
         # A provisioned venv legitimately contains interpreter symlinks. Its
         # mutable contents are not part of the exported bundle manifest.
         if relative.parts[0] == ".cache" and len(relative.parts) > 1:
@@ -95,6 +114,8 @@ def export_bundle(destination, source_root=None):
             path = stage / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
+        (stage / MANIFEST_NAME).write_text(json.dumps(bundle_manifest(files), ensure_ascii=False,
+                                                    sort_keys=True, indent=2) + "\n", encoding="utf-8")
         if destination.exists() or destination.is_symlink():
             raise ValueError("Skill destination appeared during installation; retry safely")
         stage.rename(destination)
@@ -123,6 +144,12 @@ def main(argv=None):
         destination = _no_links(destination)
         if args.approve:
             result = export_bundle(destination)
+            if result["status"] == "installed":
+                manifest_path = destination / MANIFEST_NAME
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                manifest.update(scope=args.scope, platform=args.platform)
+                manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                                         encoding="utf-8")
         else:
             result = {"status": "preview", "path": str(destination), "files": sorted(_files()),
                       "writes": [str(destination)], "network": False,

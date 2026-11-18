@@ -88,6 +88,31 @@ def setup(skill):
         lock.rmdir()
 
 
+def update_command(skill, runtime, args):
+    # Update controls remain available when optional runtime dependencies are absent.
+    sys.path.insert(0, str(runtime))
+    try:
+        from agent_team.updates import main as updates_main
+        return updates_main(args, skill=skill)
+    finally:
+        sys.path.pop(0)
+
+
+def notify_update(skill):
+    """Bounded, best-effort check after real use; never mix notices into stdout."""
+    if not (skill / ".agent-team-install.json").is_file():
+        return
+    try:
+        result = subprocess.run([sys.executable, "-E", str(skill / "scripts/run.py"), "update", "check"],
+                                capture_output=True, encoding="utf-8", timeout=8)
+        if result.returncode == 0:
+            notice = json.loads(result.stdout)
+            if notice.get("notify") is True:
+                print(json.dumps({"agent_team_update": notice}, ensure_ascii=False), file=sys.stderr)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+
+
 def main(argv=None):
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -95,6 +120,8 @@ def main(argv=None):
     args = list(sys.argv[1:] if argv is None else argv)
     try:
         skill, runtime = locations()
+        if args and args[0] == "update":
+            return update_command(skill, runtime, args[1:])
         if args == ["--check"]:
             python = select_python(skill)
             print(json.dumps({"status": "ready" if python else "setup_required",
@@ -112,7 +139,10 @@ def main(argv=None):
             return 3
         # Remove implicit cwd and ignore PYTHONPATH, preserving legitimate site packages.
         code = "import sys; sys.path[0] = sys.argv.pop(1); from agent_team.cli import main; raise SystemExit(main())"
-        return subprocess.run([str(python), "-E", "-c", code, str(runtime), *args]).returncode
+        result = subprocess.run([str(python), "-E", "-c", code, str(runtime), *args]).returncode
+        if result == 0 and not any(arg in ("--version", "--help", "guide", "skill") for arg in args):
+            notify_update(skill)
+        return result
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2

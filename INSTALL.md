@@ -6,9 +6,10 @@
 
 - 本地完整源码：执行根 `install.py`，仅用标准库，不依赖事先安装本项目、PyYAML 或系统 PATH 中的 agent-team。
 - 用户给的是仓库地址：使用宿主已授权的克隆/下载工具取得**该真实地址**，读取此文件后执行同一安装流程。不要臆造 GitHub owner、默认分支或发行 URL。
+- 官方稳定发行位于 `https://github.com/houchaoxu/agent-team-builder/releases`；可下载 `agent-team-runtime-skill.zip` 与同名 `.sha256`，先验证 SHA-256、固定 `agent-team-runtime/` 根目录及 `.agent-team-install.json`，再安装完整 bundle。源码安装入口仍可用。
 - 用户给的是完整导出 Skill：应包含 SKILL.md、references、scripts/run.py 和 scripts/runtime/agent_team。将完整目录安装到宿主实际支持的位置，不只复制 SKILL.md。
 
-默认范围为当前项目；只有用户明确要求跨项目使用才选 user。Codex 项目路径 `.agents/skills/agent-team-runtime`，个人路径 `~/.agents/skills/agent-team-runtime`。其他宿主先核对其实际 Skill/指令机制，必要时通过 `--destination` 选一个明确目录并链接其项目入口；不假装自动发现。现有同名不同内容不覆盖。
+默认范围为当前项目；只有用户明确要求跨项目使用才选 user。Codex 项目路径 `.agents/skills/agent-team-runtime`，个人路径 `~/.agents/skills/agent-team-runtime`。其他宿主先核对其实际 Skill/指令机制，必要时通过 `--destination` 选一个明确目录并链接其项目入口；不假装自动发现。现有同名不同内容不覆盖。升级已安装版本遵循 Skill 的 `references/updates.md`；2.5.x 及更早安装没有更新模块和 manifest，必须由 Agent 验证官方旧 bundle 未修改、完整备份并手动迁移一次，之后才可收到按需更新提醒。
 
 ## 由 Agent 执行
 
@@ -24,3 +25,7 @@
 ## 成功回复
 
 用户只需要知道：安装位置/范围、完整或基础模式、是否已验证宿主加载、下一步直接描述需求。日常操作不暴露 YAML、任务ID、venv或内部命令，除非用户主动询问。
+
+## 后续更新
+
+2.6.0 起在实际调用 runner 后默认每 7 天 best-effort 检查官方公共稳定 Release，同一版本只提醒一次，更新由用户通过对话发起。简单任务不运行 runner、不为更新联网；关闭检查后完全停止自动联网。没有常驻或无条件启动钩子，也不上传需求、项目内容或 token。提醒依赖宿主加载入口和实际工具执行；仅安装文件不能保证通知。用户也可在 GitHub **Watch → Custom → Releases** 订阅。更新、静默、关闭和备份回退由 Agent 按 `references/updates.md` 完成。

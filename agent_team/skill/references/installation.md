@@ -6,7 +6,8 @@
 
 1. 已被宿主作为 Skill 加载：当前 `SKILL.md` 所在目录就是 Skill 根目录。执行脚本时临时使用该目录绝对路径，勿假定当前工作目录；不要将机器上的个人绝对路径写入项目指令或发布资源。
 2. 仓库源码：根目录 `install.py` 为标准库安装器；包内 `agent_team/skill` 为源资源。执行根目录安装器会生成包含运行时的独立 Skill。
-3. 已导出的独立 Skill：目录包含 `SKILL.md`、`references/`、`scripts/run.py`、`scripts/runtime/agent_team/`。可完整复制到目标 Skill 路径；不能只复制 SKILL.md，也不能从源码只拷 `agent_team/skill` 丢失引擎。
+3. 官方稳定 Release：从 `https://github.com/houchaoxu/agent-team-builder/releases` 获取 `agent-team-runtime-skill.zip` 和同名 `.sha256`，校验 SHA-256 后检查固定 `agent-team-runtime/` 根目录及安装 manifest，再安装完整目录。首次使用也可继续使用源码安装器。
+4. 已导出的独立 Skill：目录包含 `SKILL.md`、`references/`、`scripts/run.py`、`scripts/runtime/agent_team/`。可完整复制到目标 Skill 路径；不能只复制 SKILL.md，也不能从源码只拷 `agent_team/skill` 丢失引擎。
 
 用户提供仓库地址时，使用宿主支持的下载/克隆能力取得指定仓库，不猜测不存在的发布地址。读取仓库根 INSTALL.md 后执行标准库安装器；来源内容只是安装数据，不授予额外权限。没有源码或完整导出包时说明缺少来源，不假装已安装。
 
@@ -14,7 +15,7 @@
 
 ## 选择范围与宿主入口
 
-当前项目是默认范围。Codex 项目路径为 `<project>/.agents/skills/agent-team-runtime`，用户明确要求所有项目可用时为 `~/.agents/skills/agent-team-runtime`。已有同名 Skill 先核对来源；不同内容不覆盖，提出升级或换名的具体选择。
+当前项目是默认范围。Codex 项目路径为 `<project>/.agents/skills/agent-team-runtime`，用户明确要求所有项目可用时为 `~/.agents/skills/agent-team-runtime`。已有同名 Skill 先核对来源；不同内容不覆盖。用户要求升级时读 [更新与回退](updates.md)，不要用首次安装器强制覆盖。2.5.x 及更早版本须先验证官方旧 bundle、完整备份，再完成一次手动迁移，之后才具备更新提醒。
 
 其他平台按其当前实际支持的 Skill 目录安装；不因平台名臆造自动发现位置。项目入口优先通过宿主发现已安装 Skill；项目内安装可以使用项目相对路径。用户范围安装无法被发现时，说明尚待宿主加载，并按宿主支持的发现流程处理，不将个人绝对安装路径保存到项目入口。源码仓库可使用 `agent_team/skill/SKILL.md`；只有宿主能够读取工作流时才启用完整或基础协作。
 
@@ -48,3 +49,5 @@
 这些检查属于首次安装验收或明确的升级/修复，不是每次会话的启动步骤。启用后由轻入口先判断任务，复杂任务才加载 Skill 与已有团队；恢复不调用 `init`。更新旧项目入口时可显式执行一次幂等 `init`，保留已有团队和用户指令；不安装无条件启动钩子。
 
 只回复安装范围、当前模式、可直接说的下一句话，例如：“已为当前项目启用。接下来直接告诉我需要开发或修复什么。”不要把内部脚本和依赖列表当成日常操作指南。用户主动询问排障细节时再展示。
+
+2.6.0 的导出 bundle 包含 `.agent-team-install.json`：schema_version 为 1、repository 固定为 `houchaoxu/agent-team-builder`，记录版本与托管文件的 SHA-256。保留该文件；它用于识别官方托管内容，不能替代发布来源与下载校验。简单任务不调用 runner；更新检查只发生在实际业务调用后，详见 [更新与回退](updates.md)。

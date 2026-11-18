@@ -75,9 +75,22 @@ Once your host loads the lightweight project entry, each new session or task sta
 
 ### A fallback library, loaded as needed
 
-Version 2.5.0 includes a compact index of [Agency-Agents](https://github.com/msitarzewski/agency-agents) role material. Your agent first checks existing installed roles. If they leave a capability gap, local keyword retrieval and English/Chinese scenario aliases select up to six capability cards by default; your host LLM judges their meaning and fit. This uses no embeddings, extra model API, or repository clone. An empty retrieval result can require broader terms or another page; it does not prove a suitable role is absent.
+Version 2.6.0 includes a compact index of [Agency-Agents](https://github.com/msitarzewski/agency-agents) role material. Your agent first checks existing installed roles. If they leave a capability gap, local keyword retrieval and English/Chinese scenario aliases select up to six capability cards by default; your host LLM judges their meaning and fit. This uses no embeddings, extra model API, or repository clone. An empty retrieval result can require broader terms or another page; it does not prove a suitable role is absent.
 
 Only a selected role's full profile is downloaded, from a pinned revision, checked against its indexed hash, and cached for reuse. Installation follows a preview and requires existing authorization or your confirmation. A request to automatically find and install missing specialists provides that authorization within its stated scope. Installing a profile does not prove the current host can immediately call a new native agent. The library is MIT-licensed upstream material; attribution and pinned provenance travel with the index and profiles. See the [role workflow](agent_team/skill/references/role-matching.md) for details.
+
+## 🔄 Updates and notifications
+
+**Installations on 2.5.x or earlier need one manual migration first.** They have no update module and cannot notify you automatically. Say: “Migrate Agent Team Builder to the latest stable version with update support; verify and back up my old installation first.” Your agent preserves the installation scope, team, and personal roles. After migration, just ask:
+
+- “Check for Agent Team Builder updates.”
+- “Update to the latest stable version and keep a rollback backup.”
+- “Snooze update reminders for 30 days.” or “Turn off automatic checks.”
+- “Roll back the last update.”
+
+Starting with 2.6.0, actual use of the Skill's internal runner checks [GitHub stable Releases](https://github.com/houchaoxu/agent-team-builder/releases) at most once every 7 days by default and reminds you once per target version. Updates preview, verify, and back up the Skill before replacing it within your authorization; local changes cause a safe stop. The host must load the project entry and actually use the Skill. Small tasks do not run the runner or check online. There is no background process or startup hook, and check failures do not affect your task. Disabling checks stops all automatic update network requests; an explicit request to check now can override disable and snooze settings for that check only.
+
+Checks read public official GitHub release information without uploading requirements, conversations, project files, or tokens. For independent notifications, select **Watch → Custom → Releases** on the repository. See the [update and rollback workflow](agent_team/skill/references/updates.md).
 
 ## 🌍 Bring your agent
 

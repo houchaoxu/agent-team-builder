@@ -88,6 +88,20 @@ def parser():
     sub.add_parser("guide", help="按需读取随包 Skill、任务格式和宿主执行契约")
     skill = sub.add_parser("skill", help="导出可安装的入口 Skill；不修改全局设置")
     skill.add_argument("destination", type=Path)
+    update = sub.add_parser("update", help="Skill 更新检查、偏好、预览升级与回退")
+    update.add_argument("--skill", type=Path, help="完整安装的 Skill 目录；默认当前随包 Skill")
+    update_sub = update.add_subparsers(dest="action", required=True)
+    check = update_sub.add_parser("check")
+    check.add_argument("--force", action="store_true")
+    update_sub.add_parser("status")
+    configure = update_sub.add_parser("configure")
+    configure.add_argument("--enabled", choices=("true", "false"))
+    configure.add_argument("--snooze-days", type=int)
+    apply = update_sub.add_parser("apply")
+    apply.add_argument("--approve", action="store_true")
+    rollback = update_sub.add_parser("rollback")
+    rollback.add_argument("backup_id")
+    rollback.add_argument("--approve", action="store_true")
     return p
 
 
@@ -96,6 +110,19 @@ def export_skill(destination):
 
 
 def dispatch(args):
+    if args.command == "update":
+        from .updates import check_updates, configure_updates, rollback, update_status, upgrade
+        skill = args.skill or skill_source()
+        if args.action == "check":
+            return check_updates(skill, force=args.force)
+        if args.action == "status":
+            return update_status(skill)
+        if args.action == "configure":
+            return configure_updates(skill, enabled=None if args.enabled is None else args.enabled == "true",
+                                     snooze_days=args.snooze_days)
+        if args.action == "apply":
+            return upgrade(skill, approved=args.approve)
+        return rollback(skill, args.backup_id, approved=args.approve)
     if args.command == "guide":
         source = skill_source()
         return {"skill": (source / "SKILL.md").read_text(encoding="utf-8"),

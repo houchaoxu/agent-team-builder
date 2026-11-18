@@ -115,7 +115,7 @@ class CLITests(unittest.TestCase):
         completed = subprocess.run([sys.executable, "-m", "agent_team", "--version"],
                                    capture_output=True, text=True, encoding="utf-8", check=False)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("2.5.0", completed.stdout)
+        self.assertIn("2.6.0", completed.stdout)
         destination = self.root / "exported-skill"
         self.invoke("skill", str(destination))
         self.assertTrue((destination / "SKILL.md").is_file())
