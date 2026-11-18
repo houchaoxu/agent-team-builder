@@ -110,10 +110,12 @@ class UpdateIntegrationTests(unittest.TestCase):
         (self.skill / MANIFEST_NAME).write_text(json.dumps(current), encoding='utf-8')
         future = self.root / 'future'
         export_bundle(future)
+        major, minor, patch_version = map(int, __version__.split('.'))
+        future_version = '{}.{}.{}'.format(major, minor, patch_version + 1)
         version_file = future / 'scripts/runtime/agent_team/__init__.py'
-        version_file.write_text(version_file.read_text().replace(__version__, '2.7.0'), encoding='utf-8')
+        version_file.write_text(version_file.read_text().replace(__version__, future_version), encoding='utf-8')
         metadata = updates._manifest(future)
-        metadata['version'] = '2.7.0'
+        metadata['version'] = future_version
         metadata['files']['scripts/runtime/agent_team/__init__.py'] = hashlib.sha256(version_file.read_bytes()).hexdigest()
         (future / MANIFEST_NAME).write_text(json.dumps(metadata), encoding='utf-8')
         output = io.BytesIO()
@@ -122,7 +124,7 @@ class UpdateIntegrationTests(unittest.TestCase):
                 if path.is_file():
                     archive.write(path, 'agent-team-runtime/' + path.relative_to(future).as_posix())
         payload = output.getvalue()
-        release = {'version': '2.7.0', 'url': 'https://github.com/' + updates.REPOSITORY + '/releases/tag/v2.7.0',
+        release = {'version': future_version, 'url': 'https://github.com/' + updates.REPOSITORY + '/releases/tag/v' + future_version,
                    'release_notes': '', 'assets': {updates.ASSET_NAME: 'archive', updates.ASSET_NAME + '.sha256': 'digest'}}
         def download(url, limit, assets=False):
             return (hashlib.sha256(payload).hexdigest() + '  ' + updates.ASSET_NAME).encode() if url == 'digest' else payload
@@ -131,7 +133,7 @@ class UpdateIntegrationTests(unittest.TestCase):
             result = updates.upgrade(self.skill, approved=True)
         self.assertEqual(result['status'], 'upgraded')
         self.assertEqual(updates._manifest(self.skill)['scope'], 'user')
-        self.assertEqual(self.invoke('--version').stdout.strip(), '2.7.0')
+        self.assertEqual(self.invoke('--version').stdout.strip(), future_version)
         updates.rollback(self.skill, result['backup_id'], approved=True)
         self.assertEqual(self.invoke('--version').stdout.strip(), __version__)
         self.assertEqual(updates._manifest(self.skill)['platform'], 'codex')

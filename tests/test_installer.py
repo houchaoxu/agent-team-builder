@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from agent_team import __version__
 from agent_team.installer import export_bundle, main, skill_source
 
 
@@ -103,7 +104,7 @@ class InstallerTests(unittest.TestCase):
                                  "--version"], cwd=str(self.root), capture_output=True, text=True, encoding="utf-8",
                                 env=dict(os.environ, PYTHONPATH=str(self.root / "invalid")))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("2.6.0", result.stdout)
+        self.assertEqual(__version__, result.stdout.strip())
 
     def test_missing_dependencies_are_structured_without_setup(self):
         with patch.object(runner, "locations", return_value=(self.destination, self.root)), \

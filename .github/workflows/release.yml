@@ -28,7 +28,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: >-
-          gh release create "$RELEASE_TAG" --verify-tag --generate-notes
-          dist/agent-team-runtime-skill.zip
-          dist/agent-team-runtime-skill.zip.sha256
+        run: |
+          notes="docs/releases/$RELEASE_TAG.md"
+          if [ -f "$notes" ]; then
+            gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "$notes" \
+              dist/agent-team-runtime-skill.zip dist/agent-team-runtime-skill.zip.sha256
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --generate-notes \
+              dist/agent-team-runtime-skill.zip dist/agent-team-runtime-skill.zip.sha256
+          fi
