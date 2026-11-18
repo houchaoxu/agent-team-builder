@@ -20,7 +20,8 @@ def capability_card(role):
             "platform_compatible": role.get("platform_compatible"),
             "prompt": "", "prompt_truncated": bool(role.get("prompt")),
             "profile_digest": _digest(role)}
-    for key in ("upstream", "score", "match_evidence", "warnings"):
+    for key in ("upstream", "score", "match_evidence", "warnings", "source_platform",
+                "installed_for_platform", "native_available", "installation_required"):
         if key in role:
             card[key] = role[key]
     return card
@@ -208,11 +209,12 @@ def role_selection(roles):
         return None
     options = []
     for role in roles:
-        install = role.get("status") in ("installable", "proposed")
+        install = role.get("installation_required", role.get("status") in ("installable", "proposed"))
         options.append({"id": role["id"], "role_id": role["id"],
                         "label": role["name"], "action": "preview_install" if install else "reuse",
                         "description": role["match_evidence"]["reason"],
                         "source": role.get("source"),
+                        "source_platform": role.get("source_platform"),
                         "installation_required": install,
                         "native_available": role.get("status") == "available"})
     options.append({"id": "skip_installation", "role_id": None,

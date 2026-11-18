@@ -131,6 +131,8 @@ agent-team --project /project --platform codex role install --agency AGENCY_ROLE
 
 平台兼容但尚未验证的角色仍可作为顺序 Prompt 候选，推荐结果会说明需先验证。能力缺口会记录在任务计划的 `capability_gaps` 中，并保留给主 Agent，不会凭空创建可执行 Agent。
 
+目录同时返回 `installed_for_platform`、`installation_required`、`native_available`。当前宿主的个人目录角色算已安装；其他宿主目录只作为本地可导入素材，`source_platform` 标明来源，不会因同名而排除 Agency 后备候选。导入时将 `role show ID` 返回的规范化 JSON 保存为临时 profile，再执行 `role install <profile.json>`；原始 Markdown/TOML 不直接传给安装接口，来源文件保持原样。
+
 语义评估结果额外返回 `selection`：最多 3 个候选及跳过选项，包含角色 ID、名称、推荐理由、来源、是否需安装及原生可调用状态；空匹配时为 null。宿主用实际可用的交互问答工具渲染可点击选择，不支持时显示编号列表。评估缓存只复用匹配，不保存用户安装同意。
 
 默认 `role install` 预览来源、路径、权限和文件内容，并返回 `confirmation`，包含具体角色、目标路径、权限及“安装 / 取消”选项。主 Agent 必须先取得用户针对该具体预览的手动确认，才设置 `--approve` 写入项目目录及团队索引；宽泛历史授权、选择候选、预选或无答复都不能替代本次确认。CLI 不直接渲染 UI，也无法独立核实用户在宿主中的点击；实际答复由宿主管理。重复安装保持幂等，拒绝覆盖不同的现有内容。Codex 渲染独立 `.codex/agents/*.toml`；其他平台输出对应配置/Prompt。安装完成不代表当前会话已重载，更不代表 Agent 已运行。

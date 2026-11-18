@@ -190,7 +190,8 @@ def dispatch(args):
                 # Do not offer an upstream profile already present in the project
                 # or user directories under a different local identifier.
                 installed = [role for role in catalog if role.get("source") not in ("builtin", "generated")]
-                reusable = [role for role in installed if role.get("platform_compatible") is not False]
+                reusable = [role for role in installed if role.get("platform_compatible") is not False
+                            and role.get("installed_for_platform") is True]
                 names = {role["name"].strip().casefold() for role in reusable}
                 paths = {role.get("upstream", {}).get("path") for role in reusable}
                 identifiers = {role["id"] for role in reusable}

@@ -66,7 +66,12 @@ def _status(role, platform, host, channel="generated"):
         status, evidence = "unavailable", ["No role instructions are available for installation."]
     trust = {"host": 1.0, "project": 0.85, "installed": 0.8,
              "local": 0.65, "builtin": 0.7, "generated": 0.4}.get(channel, 0.4)
-    role.update(status=status, evidence=evidence, platform_compatible=platform in role.get("platforms", list(_ROLE_DIRS)),
+    installed = channel in ("host", "project", "installed") or status == "available"
+    compatible = platform in role.get("platforms", list(_ROLE_DIRS))
+    role.update(status=status, evidence=evidence, platform_compatible=compatible,
+                installed_for_platform=installed, native_available=status == "available",
+                installation_required=compatible and not installed and isinstance(role.get("prompt"), str)
+                and bool(role["prompt"].strip()),
                 provenance={"channel": channel, "definition_trust": trust})
     return role
 
@@ -190,8 +195,10 @@ def build_catalog(root, platform="generic", sources=None, host=None):
     for role in _scan(safe_path(root, _ROLE_DIRS[platform]), "project", project_root=root):
         add(role, "project")
     if sources is None:
-        source_dirs = [{"path": Path.home() / path, "kind": "local"}
-                       for path in _ROLE_DIRS.values() if path != _ROLE_DIRS["generic"]]
+        # Prefer the current host's definition when IDs overlap across hosts.
+        source_dirs = [{"path": Path.home() / path, "kind": "local", "platform": owner}
+                       for owner, path in sorted(_ROLE_DIRS.items(), key=lambda item: item[0] != platform)
+                       if owner != "generic"]
     else:
         if isinstance(sources, (str, Path)):
             sources = [sources]
@@ -205,7 +212,9 @@ def build_catalog(root, platform="generic", sources=None, host=None):
         if not directory.is_absolute():
             directory = root / directory
         for role in _scan(directory, source.get("kind", "local")):
-            add(role, "installed" if sources is None else "local")
+            if sources is None:
+                role["source_platform"] = source["platform"]
+            add(role, "installed" if sources is None and source["platform"] == platform else "local")
     builtins = (("implementation-engineer", "Implementation Engineer", ["implementation", "coding", "development"], ["code", "tests"]),
                 ("test-engineer", "Test Engineer", ["testing", "validation", "regression"], ["test report", "test cases"]),
                 ("code-reviewer", "Code Reviewer", ["review", "security", "correctness"], ["review findings"]),
