@@ -129,7 +129,8 @@ def plan_task(root, spec, host=None):
                    'capabilities': missing, 'recommendations': [],
                    'next_steps': ['Use CLI role recommend --query <task goal>, then submit host --assessment',
                                   'If existing agents do not fit, use role recommend --library agency --query <task goal>',
-                                  'Inspect selected roles with role show ID --library agency; install only within user authorization',
+                                  'Present assessed matches for user selection; preview the selected role and obtain manual installation confirmation before --approve',
+                                  'After installation, replan with the real member ID; unverified native invocation can use explicit role handoffs',
                                   'Use role generate only if no suitable existing or library role can be found']}
             # Role discovery is loaded only when the task has an actual capability gap.
             from .marketplace import build_catalog, recommend_roles

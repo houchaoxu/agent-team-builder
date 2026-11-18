@@ -71,7 +71,10 @@ def compact_request(catalog, query, capabilities=None, deliverables=None,
                 "If recall is weak, add English capability --term values or expand --offset/--limit; "
                 "a lexical miss does not prove no suitable role exists. Search --library agency "
                 "only after identifying a gap in existing agents. Submit --assessment with the "
-                "same arguments. Installation still follows user authorization and host verification.")}
+                "same arguments. Present assessed matches as a user-selectable shortlist. "
+                "Preview the selected installation and wait for manual confirmation before --approve; "
+                "a match, cached assessment, or preselected option is not consent. "
+                "An unverified native role can still supply instructions for an explicit handoff.")}
 
 
 def assessed_request(root, catalog, request, assessment=None):
@@ -194,5 +197,31 @@ def apply_assessment(catalog, request, assessment):
                             match_evidence={"method": "host_llm", "relevance": relevance,
                                             "reason": reason.strip(), "citations": evidence,
                                             "validation": "IDs and quotes checked; semantic fit is the host LLM's judgment."}))
+    ranked = sorted(results, key=lambda role: (-role["score"], role["id"]))
     return {"mode": "host_llm", "status": "assessed", "request_id": request["request_id"],
-            "recommendations": sorted(results, key=lambda role: (-role["score"], role["id"]))}
+            "recommendations": ranked, "selection": role_selection(ranked)}
+
+
+def role_selection(roles):
+    """Describe host-rendered choices, never a selection or installation approval."""
+    if not roles:
+        return None
+    options = []
+    for role in roles:
+        install = role.get("status") in ("installable", "proposed")
+        options.append({"id": role["id"], "role_id": role["id"],
+                        "label": role["name"], "action": "preview_install" if install else "reuse",
+                        "description": role["match_evidence"]["reason"],
+                        "source": role.get("source"),
+                        "installation_required": install,
+                        "native_available": role.get("status") == "available"})
+    options.append({"id": "skip_installation", "role_id": None,
+                    "label": "Continue without installing", "action": "skip"})
+    return {"kind": "role_selection", "requires_user_response": True,
+            "default_selection": None, "selection_grants_installation": False,
+            "options": options,
+            "instructions": "Render localized choices with the host's interactive question tool when available, "
+                            "otherwise use a numbered list. Wait for the user's answer. "
+                            "Preview only the chosen role; request manual installation confirmation "
+                            "with its source, target and permissions before passing --approve. "
+                            "Skip, cancellation, silence and cached assessments never approve installation."}

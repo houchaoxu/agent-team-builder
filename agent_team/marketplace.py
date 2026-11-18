@@ -279,6 +279,17 @@ def install_role(root, role, platform="generic", approved=False, host=None):
         result["upstream"] = role["upstream"]
     if approved is not True:
         result["action"] = "preview"
+        result["confirmation"] = {
+            "kind": "role_installation", "role_id": role["id"], "name": role["name"],
+            "source": result["source"], "target": result["target"],
+            "permissions": list(result["permissions"]),
+            "requires_user_response": True, "default_selection": None,
+            "options": [{"id": "install", "label": "Install this role"},
+                        {"id": "cancel", "label": "Do not install"}],
+            "instructions": "Explain the preview in the user's language. Ask for manual confirmation "
+                            "using an interactive question tool when available, or a plain-text question. "
+                            "Only an explicit user response confirming this installation permits --approve; "
+                            "a prior broad request, role selection, preselection or silence is not confirmation."}
         return result
     with project_lock(root):
         # Recheck containment after acquiring the project lock.

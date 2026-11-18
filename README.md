@@ -49,7 +49,7 @@ Project installation is the default. Prefer a shared installation? Add **“Inst
 | 🧠 | **A team that persists** | Reuse your project's team in the next session. |
 | 🎯 | **The right amount of help** | Small tasks stay with one agent; complex tasks get focused assistance. |
 | 🤝 | **Clear ownership** | Dependencies and file boundaries keep parallel work coordinated. |
-| 🧩 | **Roles that fit your request** | Your agent evaluates installed roles first, then searches a built-in fallback library when needed, using its own LLM to judge the candidates. |
+| 🧩 | **Roles that fit your request** | Your agent's LLM evaluates candidates, presents better-fitting roles for you to choose, and installs after your manual confirmation. |
 | 📚 | **Project memory** | Keep useful decisions and lessons, with sources and revision history. |
 | 📊 | **Honest execution records** | Track real outcomes and available metrics; unknown values stay unknown. |
 
@@ -59,7 +59,7 @@ Project installation is the default. Prefer a shared installation? Add **“Inst
 | --- | --- |
 | “Fix this button's color.” | A small change with one agent. |
 | “Build the API and frontend.” | A plan, suitable roles, file ownership, and verification. |
-| “Find and install a database specialist if our team needs one.” | Evaluate existing roles, find suitable library material, preview it, and install within your authorization. |
+| “Find a suitable agent to improve this UI.” | Compare existing roles with the specialist needs, offer candidates to choose from, preview the installation, and wait for your confirmation. |
 | “Remember this compatibility rule.” | A sourced project note for future work. |
 
 These are usage examples. Actual delegation depends on the tools and permissions available in your current host.
@@ -90,7 +90,9 @@ Automatic routing depends on the host loading the entry. There is no uncondition
 
 The bundled index contains **283 role cards** from a pinned [Agency-Agents](https://github.com/msitarzewski/agency-agents) revision. Your agent checks installed roles first. When a capability is missing, local BM25/keyword retrieval and English/Chinese scenario aliases select **up to six capability cards by default**; your host LLM judges their meaning and fit. No extra model API, vector database, or repository clone is required. An empty retrieval result may need broader terms or another page; it does not prove a suitable role is absent.
 
-Only a selected role's full profile is downloaded, from a pinned revision, checked against its indexed hash, and cached for reuse. Installation follows a preview and requires existing authorization or your confirmation. A request to automatically find and install missing specialists provides that authorization within its stated scope. Installing a profile does not prove the current host can immediately call a new native agent. The library is MIT-licensed upstream material; attribution and pinned provenance travel with the index and profiles. See the [role workflow](agent_team/skill/references/role-matching.md) for details.
+**Match → choose a role → preview → confirm → use.** When the host supports interactive questions, candidates appear as clickable choices; otherwise, use a numbered list. Choose a role or skip installation. Only the selected profile is downloaded from a pinned revision, hash-checked, and cached. Your agent shows the source and project write scope, then waits for your explicit confirmation before installing. Selecting a candidate or leaving an option preselected does not approve installation.
+
+If the installed role is not yet callable natively, a supported generic subagent can receive its specialist instructions, or the main agent can follow them sequentially, stating who actually executes the work. The library is MIT-licensed upstream material; attribution and pinned provenance travel with the index and profiles. See the [role workflow](agent_team/skill/references/role-matching.md) for details.
 
 ## 📖 Go deeper
 
