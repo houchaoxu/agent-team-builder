@@ -123,6 +123,17 @@ def plan_task(root, spec, host=None):
     agents, eligible, handoffs, gaps, retained = [], [], [], [], []
     for item in items:
         member = next((m for m in members if item['role'] in (m['id'], m['role'])), None)
+        if member is None and mode != 'single_agent':
+            # Reuse only the selected managed user role, without reinstallation
+            # or an implicit scan of all roles. Keep it ephemeral to this task;
+            # host invocation still requires current capability evidence.
+            from .agency_install import installed_user_roles
+            try:
+                reused = next(installed_user_roles(config.get('platform', 'generic'), [item['role']]), None)
+                if reused is not None:
+                    member = dict(reused, role=reused['name'])
+            except (OSError, ValueError) as exc:
+                warnings.append('Selected user role could not be reused: ' + str(exc))
         missing = item['capabilities'] if member is None else sorted(set(item['capabilities']) - set(member.get('capabilities', [])))
         if mode != 'single_agent' and (member is None or missing):
             gap = {'work_item_id': item['id'], 'role': item['role'],
@@ -152,7 +163,8 @@ def plan_task(root, spec, host=None):
         if mode != 'single_agent' and item['deliverables'] and (item['write_scope'] or item.get('read_only') is True):
             eligible.append(item)
             agents.append({'work_item_id': item['id'], 'role': item['role'], 'member_id': member['id'],
-                           'agent_id': member.get('agent_id', member['id'])})
+                           'agent_id': member.get('agent_ids', {}).get(config.get('platform'),
+                                                                    member.get('agent_id', member['id']))})
             instructions = member.get('prompt', '')
             if member.get('definition'):
                 instructions = safe_path(root, member['definition']).read_text(encoding='utf-8')

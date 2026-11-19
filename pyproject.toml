@@ -21,7 +21,7 @@ include = ["agent_team*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-agent_team = ["skill/SKILL.md", "skill/agents/*.yaml", "skill/references/*.md", "skill/scripts/*.py", "data/*.json", "data/*.txt"]
+agent_team = ["skill/SKILL.md", "skill/agents/*.yaml", "skill/references/*.md", "skill/scripts/*.py", "data/*.json", "data/*.txt", "data/agency-installer/*.json", "data/agency-installer/scripts/*.sh"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["**/__pycache__/*", "**/*.pyc", "**/.DS_Store", ".DS_Store"]

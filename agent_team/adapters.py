@@ -7,12 +7,15 @@ from pathlib import Path
 
 import yaml
 
-PLATFORMS = ("codex", "claude-code", "cursor", "gemini-cli", "generic")
+from .platforms import PLATFORMS
 _ROLE_DIRS = {
     "codex": ".codex/agents", "claude-code": ".claude/agents",
     "cursor": ".cursor/agents", "gemini-cli": ".gemini/agents",
     "generic": ".agent-team/roles",
 }
+# These portable definitions support handoffs. Agency's installer, not this
+# generic renderer, produces the native formats for the additional tools.
+_ROLE_DIRS.update({tool: ".agent-team/roles/" + tool for tool in PLATFORMS if tool not in _ROLE_DIRS})
 
 
 def _platform(platform):
@@ -35,7 +38,9 @@ def detect_platform(root, env=None):
             return platform
     root = Path(root)
     for directory, platform in ((".codex", "codex"), (".claude", "claude-code"),
-                                (".cursor", "cursor"), (".gemini", "gemini-cli")):
+                                (".cursor", "cursor"), (".gemini", "gemini-cli"),
+                                (".opencode", "opencode"), (".qwen", "qwen"),
+                                (".vibe", "vibe"), (".zcode", "zcode"), (".dsh", "dsh")):
         if (root / directory).is_dir():
             return platform
     return "generic"

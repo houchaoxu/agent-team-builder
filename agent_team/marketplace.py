@@ -152,6 +152,7 @@ def build_catalog(root, platform="generic", sources=None, host=None):
     root = Path(root).resolve()
     verified_host = host_capabilities(platform, host)
     roles = {}
+    managed_paths = set()
 
     def add(role, channel):
         existing = roles.get(role["id"])
@@ -172,6 +173,13 @@ def build_catalog(root, platform="generic", sources=None, host=None):
     if config_path.exists():
         config = validate_team(read_yaml(config_path))
         members = config.get("team", {}).get("members", config.get("members", []))
+        installation = config.get("agency_installations", {}).get(platform + ":project", {})
+        for relative, digest in installation.get("files", {}).items():
+            path = safe_path(root, relative)
+            if path.is_file() and path.stat().st_size <= 2 * 1024 * 1024:
+                from .agency_install import _hash
+                if _hash(path.read_bytes()) == digest:
+                    managed_paths.add(str(path))
         for member in members:
             definition = member.get("definition")
             role = dict(member, name=member.get("name", member["role"]),
@@ -179,6 +187,8 @@ def build_catalog(root, platform="generic", sources=None, host=None):
                         deliverables=member.get("deliverables", []),
                         prompt=member.get("prompt", ""), source="project",
                         platforms=_strings(member.get("platforms", list(_ROLE_DIRS)), "platforms"))
+            if platform in member.get("agent_ids", {}):
+                role["agent_id"] = member["agent_ids"][platform]
             if definition:
                 path = safe_path(root, definition)
                 if path.is_file():
@@ -193,12 +203,23 @@ def build_catalog(root, platform="generic", sources=None, host=None):
                         warnings.warn("Skipping invalid role definition %s: %s" % (path, exc), RuntimeWarning)
             add(role, "project")
     for role in _scan(safe_path(root, _ROLE_DIRS[platform]), "project", project_root=root):
-        add(role, "project")
+        if role.get("source_path") not in managed_paths:
+            add(role, "project")
     if sources is None:
+        from .agency_install import installed_user_roles
+        for role in installed_user_roles(platform):
+            managed_paths.update(role.pop("managed_paths"))
+            add(role, "installed")
         # Prefer the current host's definition when IDs overlap across hosts.
-        source_dirs = [{"path": Path.home() / path, "kind": "local", "platform": owner}
-                       for owner, path in sorted(_ROLE_DIRS.items(), key=lambda item: item[0] != platform)
-                       if owner != "generic"]
+        source_dirs = [{"path": Path.home() / _ROLE_DIRS[owner], "kind": "local", "platform": owner}
+                       for owner in sorted(("codex", "claude-code", "cursor", "gemini-cli"),
+                                           key=lambda owner: owner != platform)]
+        # Extra simple native formats are scanned only for the current host.
+        # Multi-file formats are recovered through verified managed records.
+        extra_user_dirs = {"opencode": (".config/opencode/agents",), "qwen": (".qwen/agents",),
+                           "zcode": (".zcode/agents",), "copilot": (".github/agents", ".copilot/agents")}
+        source_dirs[:0] = [{"path": Path.home() / path, "kind": "local", "platform": platform}
+                          for path in extra_user_dirs.get(platform, ())]
     else:
         if isinstance(sources, (str, Path)):
             sources = [sources]
@@ -212,6 +233,8 @@ def build_catalog(root, platform="generic", sources=None, host=None):
         if not directory.is_absolute():
             directory = root / directory
         for role in _scan(directory, source.get("kind", "local")):
+            if role.get("source_path") in managed_paths:
+                continue
             if sources is None:
                 role["source_platform"] = source["platform"]
             add(role, "installed" if sources is None and source["platform"] == platform else "local")

@@ -133,7 +133,8 @@ def main(argv=None):
     parser.add_argument("--destination", type=Path)
     parser.add_argument("--scope", choices=("project", "user"), default="project")
     parser.add_argument("--project", type=Path, default=Path.cwd())
-    parser.add_argument("--platform", choices=("codex", "claude-code", "cursor", "gemini-cli", "generic"), default="codex")
+    from .platforms import PLATFORMS
+    parser.add_argument("--platform", choices=PLATFORMS, default="codex")
     parser.add_argument("--approve", action="store_true")
     args = parser.parse_args(argv)
     try:

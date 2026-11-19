@@ -14,11 +14,11 @@ agent-team --project /absolute/path/to/project --platform codex init
 agent-team --project /absolute/path/to/project status
 ```
 
-未安装命令时，可在本仓库使用 `python3 -m agent_team`。支持 `codex`、`claude-code`、`cursor`、`gemini-cli` 和 `generic`；`auto` 只判断平台类型，不能证明平台具备 Subagents。
+未安装命令时，可在本仓库使用 `python3 -m agent_team`。`--platform` 接受 `codex`、`claude-code`、`cursor`、`gemini-cli`、`copilot`、`opencode`、`qwen`、`antigravity`、`aider`、`windsurf`、`kimi`、`osaurus`、`openclaw`、`hermes`、`vibe`、`zcode`、`dsh` 和 `generic`。名称被接受不代表所有功能或原生委派已受支持；Agency 文件安装矩阵由 `role tools` 返回。`auto` 只判断配置上下文，不能证明平台具备 Subagents；上下文不明确时由宿主提供实际平台，未知宿主使用 `generic`。
 
 所有参数 `--project`、`--platform`、`--host` 放在子命令之前。输出为 JSON；失败输出结构化错误到 stderr，退出码 2。
 
-初始化会写入 `.agent-team/team.yaml`、调度策略、成员/记忆/任务目录及对应平台的轻量入口。已有团队恢复使用，损坏配置报错并保留原文件。入口只增加有标记的托管内容，保留用户原有规则；不会自动写用户全局 Agent 配置。多个项目有各自的身份和状态。入口通过宿主发现 Skill，提供项目安装和源码相对路径，不写入个人绝对安装路径；重复 `init` 会从托管块中迁移掉旧绝对路径。
+初始化会写入 `.agent-team/team.yaml`、调度策略、成员/记忆/任务目录及轻量入口；额外安装目标使用通用 `AGENTS.md` 入口，需核对宿主是否实际加载。已有团队恢复使用，损坏配置报错并保留原文件。入口只增加有标记的托管内容，保留用户原有规则；初始化不会自动写用户全局 Agent 配置。多个项目有各自的身份和状态。入口通过宿主发现 Skill，提供项目安装和源码相对路径，不写入个人绝对安装路径；重复 `init` 会从托管块中迁移掉旧绝对路径。
 
 ```text
 your-project/
@@ -89,6 +89,7 @@ evidence 必须是非空映射，记录实际测试、产物、结果和未验�
 ## 角色市场
 
 ```sh
+agent-team --project /project role tools
 agent-team --project /project --platform codex role catalog
 agent-team --project /project --platform codex role catalog --source /path/to/agency-agents
 agent-team --project /project role recommend --query '帮我排查慢 SQL，优化数据库索引'
@@ -108,6 +109,9 @@ agent-team --project /project --platform codex role install /tmp/order-expert.js
 agent-team --project /project --platform codex role install /tmp/order-expert.json --approve
 agent-team --project /project --platform codex role install --agency AGENCY_ROLE_ID
 agent-team --project /project --platform codex role install --agency AGENCY_ROLE_ID --offline --approve
+agent-team --project /project --platform opencode role install --agency AGENCY_ROLE_ID
+agent-team --project /project --platform kimi role install --agency AGENCY_ROLE_ID --scope user
+agent-team --project /project --platform generic role install --agency AGENCY_ROLE_ID --installer builtin
 ```
 
 2.5.0 的对话流程先评估现有已安装角色，不足时再查后备素材库。`role catalog` 保留完整目录发现用途；`role recommend --query` 默认评估现有角色，排除内置 proposed 草案。`--library agency` 显式切换到内置 [Agency-Agents](https://github.com/msitarzewski/agency-agents) 索引。`--source` 仍支持已有本地目录，支持角色 Markdown/frontmatter 和 Codex TOML；不要求用户 clone 仓库。无合适素材时，`role generate` 可生成可编辑的确定性初稿，再由主 Agent 完善。
@@ -135,7 +139,21 @@ agent-team --project /project --platform codex role install --agency AGENCY_ROLE
 
 语义评估结果额外返回 `selection`：最多 3 个候选及跳过选项，包含角色 ID、名称、推荐理由、来源、是否需安装及原生可调用状态；空匹配时为 null。宿主用实际可用的交互问答工具渲染可点击选择，不支持时显示编号列表。评估缓存只复用匹配，不保存用户安装同意。
 
-默认 `role install` 预览来源、路径、权限和文件内容，并返回 `confirmation`，包含具体角色、目标路径、权限及“安装 / 取消”选项。主 Agent 必须先取得用户针对该具体预览的手动确认，才设置 `--approve` 写入项目目录及团队索引；宽泛历史授权、选择候选、预选或无答复都不能替代本次确认。CLI 不直接渲染 UI，也无法独立核实用户在宿主中的点击；实际答复由宿主管理。重复安装保持幂等，拒绝覆盖不同的现有内容。Codex 渲染独立 `.codex/agents/*.toml`；其他平台输出对应配置/Prompt。安装完成不代表当前会话已重载，更不代表 Agent 已运行。
+默认 `role install` 预览来源、路径、权限和文件内容，并返回 `confirmation`，包含具体角色、目标路径、权限及“安装 / 取消”选项。主 Agent 必须先取得用户针对该具体预览的手动确认，才设置 `--approve` 写入已选择范围的角色文件及项目团队索引；宽泛历史授权、选择候选、预选或无答复都不能替代本次确认。CLI 不直接渲染 UI，也无法独立核实用户在宿主中的点击；实际答复由宿主管理。重复安装保持幂等，拒绝覆盖不同的现有内容。安装完成不代表当前会话已重载，更不代表 Agent 已运行。
+
+### Agency 上游安装桥接
+
+`role install --agency ID` 的 `--installer auto` 在非 `generic` 目标默认使用 Agency-Agents 上游桥接；`generic` 默认使用内置可移植格式。`--installer agency` 必须搭配 `--agency ID`；`--installer builtin` 可显式使用原项目内置安装器或规范化本地 profile，不支持用户范围，也不声称为额外宿主生成原生格式。
+
+桥接随包携带固定 revision 的上游安装/转换脚本和元数据，执行前检查 hash，并要求脚本与角色索引 revision 一致。维护者在干净的上游 checkout 先运行 `scripts/build_agency_index.py CHECKOUT`，再用同 revision 执行 `scripts/build_agency_installer.py CHECKOUT [--data DATA]` 更新五个固定资源及 manifest；发布前审查脚本副作用、作用域变化并测试，不能单独切换索引 revision。正文只从本次和合并所需的既有已选角色按需获取，无需用户 clone 上游。脚本使用临时 HOME 和临时目标生成产物，再由本项目预览所有真实写入路径、确认后保存定义与团队记录；不直接把真实用户目录交给上游脚本。
+
+`role tools` 返回上游 17 个目标的 format、installKind、destinations、作用域和限制。16 个目标支持文件安装；Hermes 是需启用配置的路由插件，当前角色安装器明确拒绝。`--scope project` 默认值不自动扩展：Kimi、Osaurus、OpenClaw 仅支持 `user`，必须由用户明确选择。Cursor、Aider、Windsurf 仅支持 `project`，其他已支持目标可选 `project` / `user`。用户范围安装仍在当前项目保存可移植定义和团队记录。
+
+上游桥接需要 Bash 3.2+ 和标准 Unix 工具；TOML 转换需 Perl。Windows 需要 Git Bash/WSL。缺少依赖时报告可用选项，只有用户选择内置可移植方式后才切换后端并重新预览。完整流程和目标表见 [Agency 安装参考](../agent_team/skill/references/agency-installation.md)。
+
+返回结果包含 `installer`（backend、revision、tool、scope、mechanism）、精确 `files`、`targets`、`agent_id`、`native_available` 和 `activation`。项目记录保存上游来源、各宿主 Agent ID 与安装文件 hash。Aider/Windsurf 的合并文件由此前已选角色与本次角色共同重建，只有未被用户修改的托管文件才更新；Aider 原文存入持久项目路径，避免索引引用临时目录。重建所需角色也复用校验缓存，`--offline` 缺缓存时失败。
+
+OpenClaw 只用上游转换器生成工作区文件，`installer.mechanism=converter-only`、`activation.state=registration_required`，不执行真实 CLI 注册或 gateway restart。后续注册/重启须有明确授权并核对实际宿主状态；待执行命令不代表已执行。其他目标的 `activation` 同样要求独立验证发现与调用，不能从格式支持推断原生多 Agent 支持。
 
 平台和版本变化时，以当前宿主实际工具及其官方文档为准。Codex 格式依据[官方 Subagents 文档](https://developers.openai.com/codex/subagents/)，需有 `name`、`description`、`developer_instructions`。Cursor/Gemini 的原生子 Agent 支持仍由宿主提供证据；没有证据时使用顺序交接。
 

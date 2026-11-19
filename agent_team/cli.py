@@ -7,14 +7,14 @@ import sys
 
 from . import __version__
 from .installer import export_bundle, skill_source
-from .adapters import capabilities, detect_platform
+from .adapters import PLATFORMS as HOST_PLATFORMS, capabilities, detect_platform
 from .marketplace import build_catalog, generate_role, install_role, recommend_roles
 from .recommendation import assessed_request, compact_request, _digest
 from .runtime import (add_memory, analytics, get_task, list_tasks, plan_task,
                       read_memory, update_task)
 from .storage import bootstrap, discover_root, read_yaml, safe_path, validate_team
 
-PLATFORMS = ("auto", "codex", "claude-code", "cursor", "gemini-cli", "generic")
+PLATFORMS = ("auto",) + HOST_PLATFORMS
 
 
 def parser():
@@ -42,6 +42,7 @@ def parser():
     update.add_argument("--metrics", type=Path, help="宿主提供的实际统计映射 YAML/JSON")
     role = sub.add_parser("role", help="角色发现、推荐、生成和项目安装")
     role_sub = role.add_subparsers(dest="action", required=True)
+    role_sub.add_parser("tools", help="查询 Agency 上游安装目标、格式和作用域")
     catalog = role_sub.add_parser("catalog")
     catalog.add_argument("--source", action="append", type=Path, default=[])
     recommend = role_sub.add_parser("recommend")
@@ -69,6 +70,10 @@ def parser():
     install.add_argument("--agency", metavar="ID", help="按需获取并安装 Agency-Agents 角色")
     install.add_argument("--offline", action="store_true", help="仅使用已校验的本地缓存")
     install.add_argument("--approve", action="store_true")
+    install.add_argument("--installer", choices=("auto", "agency", "builtin"), default="auto",
+                         help="Agency 角色默认使用固定版本上游安装器；generic 使用内置可移植格式")
+    install.add_argument("--scope", choices=("project", "user"), default="project",
+                         help="角色安装范围；user 需要用户明确选择和确认")
     memory = sub.add_parser("memory", help="有来源的项目知识")
     memory_sub = memory.add_subparsers(dest="action", required=True)
     mem_show = memory_sub.add_parser("show")
@@ -157,16 +162,27 @@ def dispatch(args):
                            metrics=read_yaml(args.metrics) if args.metrics else None,
                            evidence=read_yaml(args.evidence) if args.evidence else None)
     if args.command == "role":
+        if args.action == "tools":
+            from .agency_install import supported_tools
+            return supported_tools()
         if args.action == "generate":
             return generate_role(args.id, args.name, args.capability, args.deliverable)
         if args.action == "install":
             if bool(args.profile) == bool(args.agency):
                 raise ValueError("Provide one profile file or --agency ID.")
             if args.agency:
+                if args.installer == "agency" or (args.installer == "auto" and platform != "generic"):
+                    from .agency_install import install_agency_role
+                    return install_agency_role(root, args.agency, platform, scope=args.scope,
+                                               approved=args.approve, host=host, offline=args.offline)
                 from .agency import fetch_role
                 profile = fetch_role(root, args.agency, platform=platform, offline=args.offline)
             else:
+                if args.installer == "agency":
+                    raise ValueError("The upstream installer requires --agency ID.")
                 profile = read_yaml(args.profile)
+            if args.scope != "project":
+                raise ValueError("User scope requires the Agency installer and --agency ID.")
             return install_role(root, profile, platform, args.approve, host)
         catalog = build_catalog(root, platform, sources=args.source or None, host=host)
         if args.action == "catalog":

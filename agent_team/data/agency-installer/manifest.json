@@ -1,0 +1,12 @@
+{
+  "repository": "msitarzewski/agency-agents",
+  "revision": "8ae6164602c95ca78828b148b9052460ee426885",
+  "license": "MIT",
+  "files": {
+    "scripts/install.sh": "ce64d7ed6e3969d549da0ebb1e52db6852a9f33540460f15e89852d15aeafaf5",
+    "scripts/convert.sh": "c370a6e9bbea4fbc5b684a614ef9edf540010cf8c9be102a386678b8e8656a8f",
+    "scripts/lib.sh": "51bb6fb36c4727d2764f770649ab18630f5b91e6bd7c9ef96bb5ed2084f30b44",
+    "divisions.json": "a85d4ceeabe671051559e7703dfca074bf7a259ba26b61fb5e14ed36d54ae051",
+    "tools.json": "f02d2a5e0638f86266fd586cfea81c47dd39713d9a01bb174dc38cd6bfa6de65"
+  }
+}
