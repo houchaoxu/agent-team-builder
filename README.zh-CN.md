@@ -92,7 +92,7 @@ Skill 提供面向用户的工作流程；可选的 Python 引擎负责配置校
 
 **匹配 → 选择角色 → 预览安装 → 手动确认 → 使用。** 宿主支持交互问答时提供可点击的候选列表，否则提供编号列表；你可以选择角色，也可以跳过安装。完整资料按需从固定 revision 下载，校验 hash 并缓存复用。Agent 展示来源、目标位置与写入范围，收到你对具体安装的明确确认后才写入；选中候选或默认预选不等于同意安装。
 
-**把角色装进你正在使用的工具。** 复用 Agency-Agents 随包提供的适配器，为 Codex、Claude Code、OpenCode、Qwen、Cursor 等工具生成对应的角色、规则或 Skill 格式。默认安装到当前项目，用户范围安装需由你明确选择；转换和安装都由 Agent 处理。具体见[支持目标与环境要求](agent_team/skill/references/agency-installation.md)，文件安装后仍需验证宿主发现状态。
+**把角色装进你正在使用的工具。** Agency-Agents 随包适配器为支持的工具生成对应角色文件；Agent Team Builder 另外为 Trae、Pi 准备 Skill，并为 WorkBuddy 生成可导入包。支持项目安装的目标默认安装到当前项目；WorkBuddy 需在 Skills 界面导入。Skill 不等于可调用的子 Agent。具体见[支持目标与环境要求](agent_team/skill/references/agency-installation.md)。
 
 安装后的角色若尚不能原生调用，可在宿主支持时将其专业指令交给通用子 Agent，或由主 Agent 按角色指令顺序执行，并说明实际执行方式。上游素材采用 MIT 许可证，索引和角色保留署名与固定版本来源。详细流程见[语义角色推荐](agent_team/skill/references/role-matching.md)。
 

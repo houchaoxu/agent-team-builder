@@ -142,6 +142,34 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             plan_task(self.root, self.spec(items=[item]), host)
 
+    def test_skill_role_is_never_promoted_to_native_subagent(self):
+        self.team['platform'] = 'pi'
+        member = self.team['team']['members'][0]
+        member['agent_ids'] = {'pi': 'implementer'}
+        member['agent_kinds'] = {'pi': 'skill'}
+        member['platforms'] = ['pi']
+        write_yaml(self.root / '.agent-team/team.yaml', self.team)
+        host = {'native_subagents': True, 'evidence': 'Current host inventory lists implementer',
+                'available_agents': ['implementer']}
+        items = [self.item('a', 'src/a'), self.item('b', 'src/b')]
+
+        record = plan_task(self.root, self.spec(80, items), host)
+
+        self.assertEqual(record['execution']['strategy'], 'sequential_handoffs')
+        self.assertEqual([agent['agent_id'] for agent in record['execution']['agents']], [None, None])
+        self.assertEqual([agent['agent_kind'] for agent in record['execution']['agents']], ['skill', 'skill'])
+        self.assertEqual([agent['configured_agent_id'] for agent in record['execution']['agents']],
+                         ['implementer', 'implementer'])
+
+        # Registries written by earlier versions omit agent_kinds; recognize
+        # the old Agency Skill installation from its platform and provenance.
+        member.pop('agent_kinds')
+        member['upstream'] = {'repository': 'agency-agents'}
+        write_yaml(self.root / '.agent-team/team.yaml', self.team)
+        legacy = plan_task(self.root, self.spec(80, items), host)
+        self.assertEqual(legacy['execution']['strategy'], 'sequential_handoffs')
+        self.assertEqual([agent['agent_id'] for agent in legacy['execution']['agents']], [None, None])
+
     def test_corrupt_orchestration_is_not_replaced(self):
         path = self.root / '.agent-team/orchestration.yaml'
         path.write_text('thresholds: [broken', encoding='utf8')

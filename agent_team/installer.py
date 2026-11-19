@@ -1,6 +1,7 @@
 """Standard-library-only, self-contained Skill bundle installer."""
 import argparse
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import time
+import zipfile
 
 from . import __version__
 
@@ -125,6 +127,45 @@ def export_bundle(destination, source_root=None):
     return dict(result, status="installed")
 
 
+def export_bundle_archive(destination, source_root=None):
+    """Create a self-contained, importable Skill ZIP (SKILL.md at archive root)."""
+    destination = _no_links(Path(destination))
+    files = _files(source_root)
+    manifest = bundle_manifest(files)
+    # Stable bytes make repeated exports idempotent while retaining provenance.
+    manifest.pop("installed_at", None)
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for name, content in sorted(files.items()):
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            bundle.writestr(info, content)
+        info = zipfile.ZipInfo(MANIFEST_NAME, date_time=(1980, 1, 1, 0, 0, 0))
+        info.compress_type = zipfile.ZIP_DEFLATED
+        bundle.writestr(info, json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
+    content = archive.getvalue()
+    if destination.exists():
+        if not destination.is_file() or destination.read_bytes() != content:
+            raise ValueError("Skill archive destination differs; existing files will not be overwritten")
+        return {"path": str(destination), "status": "unchanged", "sha256": hashlib.sha256(content).hexdigest(),
+                "files": sorted(files)}
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix="." + destination.name + "-", dir=str(destination.parent))
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if destination.exists() or destination.is_symlink():
+            raise ValueError("Skill archive destination appeared during export; retry safely")
+        os.replace(temporary, destination)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return {"path": str(destination), "status": "prepared", "sha256": hashlib.sha256(content).hexdigest(),
+            "files": sorted(files)}
+
+
 def main(argv=None):
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -138,27 +179,48 @@ def main(argv=None):
     parser.add_argument("--approve", action="store_true")
     args = parser.parse_args(argv)
     try:
-        if args.destination is None and args.platform != "codex":
+        directories = {
+            "codex": ".agents/skills/agent-team-runtime",
+            "claude-code": ".claude/skills/agent-team-runtime",
+            "trae": ".trae/skills/agent-team-runtime",
+            "pi": ".agents/skills/agent-team-runtime",
+        }
+        if args.destination is None and args.platform not in directories and args.platform != "workbuddy":
             raise ValueError("This platform requires an explicit --destination")
-        destination = args.destination or ((Path.home() if args.scope == "user" else args.project)
-                                           / ".agents/skills/agent-team-runtime")
+        default_destination = ((Path.home() if args.scope == "user" else args.project)
+                               / ".agent-team/exports/agent-team-runtime.zip"
+                               if args.platform == "workbuddy" else
+                               (Path.home() if args.scope == "user" else args.project) / directories[args.platform])
+        destination = args.destination or default_destination
         destination = _no_links(destination)
         if args.approve:
-            result = export_bundle(destination)
-            if result["status"] == "installed":
-                manifest_path = destination / MANIFEST_NAME
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                manifest.update(scope=args.scope, platform=args.platform)
-                manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-                                         encoding="utf-8")
+            result = (export_bundle_archive(destination) if args.platform == "workbuddy"
+                      else export_bundle(destination))
+            if args.platform == "workbuddy":
+                result.update(status="prepared_for_import", activation={
+                    "state": "manual_import_required", "executed": False,
+                    "instructions": "Import this ZIP in WorkBuddy's Skills UI and select the requested "
+                                    + args.scope + " scope. "
+                                    "The public docs do not specify automatic local project discovery."})
+            elif result["status"] == "installed":
+                result_path = destination / MANIFEST_NAME
+                if result_path.exists():
+                    manifest = json.loads(result_path.read_text(encoding="utf-8"))
+                    manifest.update(scope=args.scope, platform=args.platform)
+                    result_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                                           encoding="utf-8")
         else:
             result = {"status": "preview", "path": str(destination), "files": sorted(_files()),
                       "writes": [str(destination)], "network": False,
                       "dependencies": ["Python>=3.9", "optional runtime: PyYAML>=6,<7",
                                        "Python<3.11: tomli>=2"],
                       "next": "Agent may apply existing authorization using --approve"}
+            if args.platform == "workbuddy":
+                result["activation"] = {"state": "manual_import_required", "executed": False,
+                                        "instructions": "The ZIP will need to be imported through WorkBuddy's Skills UI; "
+                                                        "select Project scope after import."}
         result.update(scope=args.scope, platform=args.platform)
-        result["installed_globally"] = args.scope == "user"
+        result["installed_globally"] = args.scope == "user" and args.platform != "workbuddy"
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError) as exc:

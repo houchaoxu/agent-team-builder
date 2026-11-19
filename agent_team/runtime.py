@@ -161,10 +161,20 @@ def plan_task(root, spec, host=None):
             warnings.append('Capability gap for {}; main agent retains this work item'.format(item['id']))
             continue
         if mode != 'single_agent' and item['deliverables'] and (item['write_scope'] or item.get('read_only') is True):
+            platform = config.get('platform', 'generic')
+            agent_kinds = member.get('agent_kinds', {})
+            agent_kind = agent_kinds.get(platform) if isinstance(agent_kinds, dict) else None
+            # Older Agent Team Builder installs did not record the distinction
+            # between a generated Skill and a callable host agent. Recognize
+            # those records by their managed Agency provenance and target.
+            if (agent_kind is None and platform in ('trae', 'pi', 'workbuddy')
+                    and platform in member.get('platforms', []) and member.get('upstream')):
+                agent_kind = 'skill'
             eligible.append(item)
             agents.append({'work_item_id': item['id'], 'role': item['role'], 'member_id': member['id'],
                            'agent_id': member.get('agent_ids', {}).get(config.get('platform'),
-                                                                    member.get('agent_id', member['id']))})
+                                                                    member.get('agent_id', member['id'])),
+                           'agent_kind': agent_kind or 'agent'})
             instructions = member.get('prompt', '')
             if member.get('definition'):
                 instructions = safe_path(root, member['definition']).read_text(encoding='utf-8')
@@ -202,11 +212,16 @@ def plan_task(root, spec, host=None):
     limit = min(limit, host_limit, 3)
     # Resolve the exact host identifier that will actually be passed to spawn.
     for agent in agents:
-        matched = next((identifier for identifier in
-                        (agent['agent_id'], agent['member_id'], agent['role'])
-                        if identifier in available), None)
         agent['configured_agent_id'] = agent['agent_id']
-        agent['agent_id'] = matched if native else agent['agent_id']
+        if agent['agent_kind'] == 'skill':
+            # A Skill can supply role instructions for a handoff, but its name
+            # appearing in the host inventory does not make it callable.
+            agent['agent_id'] = None
+        else:
+            matched = next((identifier for identifier in
+                            (agent['agent_id'], agent['member_id'], agent['role'])
+                            if identifier in available), None)
+            agent['agent_id'] = matched if native else agent['agent_id']
     callable_agents = native and all(a['agent_id'] is not None for a in agents)
     strategy = 'single_agent' if mode == 'single_agent' or not eligible else 'native_subagents' if callable_agents else 'sequential_handoffs'
     if mode != 'single_agent' and not callable_agents:

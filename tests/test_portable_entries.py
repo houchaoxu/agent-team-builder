@@ -7,8 +7,9 @@ import sys
 
 import pytest
 
-from agent_team.adapters import PLATFORMS, entry_path, entry_text
+from agent_team.adapters import PLATFORMS, entry_path, entry_text, render_role
 from agent_team.installer import export_bundle
+from agent_team.marketplace import build_catalog
 from agent_team.storage import bootstrap, write_yaml
 
 
@@ -22,10 +23,49 @@ def test_entry_never_embeds_installed_skill_location(tmp_path, monkeypatch, plat
     monkeypatch.setenv('AGENT_TEAM_SKILL_ROOT', str(skill))
     assert entry_text(platform) == expected
     assert str(skill) not in expected
-    assert '.agents/skills/agent-team-runtime/SKILL.md' in expected
+    expected_skill = {
+        'claude-code': '.claude/skills/agent-team-runtime/SKILL.md',
+        'trae': '.trae/skills/agent-team-runtime/SKILL.md',
+    }.get(platform, '.agents/skills/agent-team-runtime/SKILL.md')
+    assert expected_skill in expected
     assert 'agent_team/skill/SKILL.md' in expected
     bootstrap(tmp_path, platform)
     assert (tmp_path / entry_path(platform)).read_text(encoding='utf-8') == expected
+
+
+@pytest.mark.parametrize('platform,skill_dir', [
+    ('trae', '.trae/skills'), ('pi', '.agents/skills'),
+])
+def test_skill_host_entry_and_role_use_official_project_directories(tmp_path, platform, skill_dir):
+    entry = entry_text(platform)
+    profile = {'id': 'ui-designer', 'name': 'UI Designer',
+               'description': 'Design accessible interfaces',
+               'capabilities': ['interaction-design', 'accessibility'],
+               'deliverables': ['design system', 'usability review'],
+               'prompt': 'Produce a design system and review the UI.'}
+    rendered = render_role(profile, platform)
+    assert entry.startswith('---\nalwaysApply: true\n---') if platform == 'trae' else entry.startswith('<!--')
+    assert skill_dir + '/agent-team-runtime/SKILL.md' in entry
+    assert rendered['path'] == skill_dir + '/ui-designer/SKILL.md'
+    assert 'agent_team_role_id: ui-designer' in rendered['content']
+    assert 'Produce a design system' in rendered['content']
+    skill_path = tmp_path / rendered['path']
+    skill_path.parent.mkdir(parents=True)
+    skill_path.write_text(rendered['content'], encoding='utf-8')
+    installed = next(role for role in build_catalog(tmp_path, platform, sources=[])
+                     if role['id'] == 'ui-designer')
+    assert installed['capabilities'] == profile['capabilities']
+    assert installed['deliverables'] == profile['deliverables']
+
+
+def test_workbuddy_is_explicitly_an_import_skill_not_a_native_rule():
+    entry = entry_text('workbuddy')
+    rendered = render_role({'id': 'ui-designer', 'name': 'UI Designer',
+                            'description': 'Design accessible interfaces',
+                            'prompt': 'Produce a design system and review the UI.'}, 'workbuddy')
+    assert 'Skills UI' in entry
+    assert rendered['path'] == '.agent-team/workbuddy-imports/ui-designer/SKILL.md'
+    assert 'agent_team_role_id: ui-designer' in rendered['content']
 
 
 def test_runner_entries_are_identical_across_installations(tmp_path):

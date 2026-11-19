@@ -69,7 +69,7 @@ def staged_codex(monkeypatch):
 def test_tool_contract_has_explicit_scope_and_plugin_limits(library):
     result = bridge.supported_tools()
     tools = {tool["id"]: tool for tool in result["tools"]}
-    assert len(tools) == 17 and result["revision"] == REVISION
+    assert len(tools) == 20 and result["revision"] == REVISION
     assert {key for key, tool in tools.items() if tool["installation_supported"]} == set(bridge.DESTINATIONS)
     assert not tools["hermes"]["installation_supported"]
     assert tools["hermes"]["kind"] == "plugin"
@@ -77,12 +77,14 @@ def test_tool_contract_has_explicit_scope_and_plugin_limits(library):
         assert tools[key]["scopes"] == ["user"]
     for tool in tools.values():
         assert tool["native_available"] is None
+        if tool["installer"] != "agency-upstream":
+            continue
         for scope in tool["scopes"]:
             assert tool["upstream_scope"][scope] is True
 
 
 @real_upstream
-@pytest.mark.parametrize("tool", sorted(bridge.DESTINATIONS))
+@pytest.mark.parametrize("tool", sorted(set(bridge.DESTINATIONS) - bridge.SKILL_TARGETS))
 def test_real_upstream_selected_role_preview_approval_and_repeat(library, tool):
     root = library["project"]
     scope = "project" if "project" in bridge.DESTINATIONS[tool] else "user"
@@ -257,7 +259,63 @@ def test_cli_routes_agency_scope_and_builtin_without_shell(library, staged_codex
     builtin = json.loads(capsys.readouterr().out)
     assert builtin["installed"] and (root / builtin["target"]).is_file()
     assert main(["--project", str(root), "role", "tools"]) == 0
-    assert len(json.loads(capsys.readouterr().out)["tools"]) == 17
+    assert len(json.loads(capsys.readouterr().out)["tools"]) == 20
+
+
+@pytest.mark.parametrize("tool,scope,path", [
+    ("trae", "project", ".trae/skills/%s/SKILL.md"),
+    ("pi", "project", ".agents/skills/%s/SKILL.md"),
+    ("workbuddy", "project", ".agent-team/workbuddy-imports/%s.zip"),
+])
+def test_skill_host_role_preview_and_install_are_distinct_from_native_agents(library, tool, scope, path):
+    root = library["project"]
+    host = {"native_subagents": True, "evidence": "Session lists UI Designer",
+            "available_agents": ["UI Designer", ROLE_ONE]}
+    preview = bridge.install_agency_role(root, ROLE_ONE, tool, scope=scope, host=host)
+    assert preview["action"] == "preview" and preview["confirmation"]["requires_user_response"]
+    assert preview["target"] == str(root / (path % ROLE_ONE))
+    assert preview["installer"]["backend"] == "agent-team-skill-adapter"
+    assert preview["skill_available"] and not preview["native_available"]
+    assert preview["activation"]["executed"] is False
+    assert not Path(preview["target"]).exists()
+    assert library["downloads"] == ["testing/testing-bridge-one.md"]
+    installed = bridge.install_agency_role(root, ROLE_ONE, tool, scope=scope, host=host, approved=True, offline=True)
+    assert installed["installed"] and not installed["native_available"]
+    assert installed["activation"]["executed"] is False
+    assert installed["agent_id"] == ROLE_ONE
+    member = next(item for item in read_yaml(root / ".agent-team/team.yaml")["team"]["members"]
+                  if item["id"] == ROLE_ONE)
+    assert member["agent_kinds"][tool] == "skill"
+    if tool == "workbuddy":
+        import base64
+        import io
+        import zipfile
+        data = Path(installed["target"]).read_bytes()
+        with zipfile.ZipFile(io.BytesIO(data)) as package:
+            skill = package.read("SKILL.md").decode("utf-8")
+        preview_file = preview["files"][0]
+        assert base64.b64decode(preview_file["content_base64"]) == data
+        assert preview["activation"]["state"] == "manual_import_required"
+        assert installed["activation"]["state"] == "manual_import_required"
+    else:
+        skill_path = Path(installed["target"])
+        assert skill_path.is_file()
+        skill = skill_path.read_text(encoding="utf-8")
+        assert installed["activation"]["state"] == "skill_discovery_required"
+    assert "agent_team_role_id: " + ROLE_ONE in skill
+    assert "ONLY_ROLE_ONE" in skill
+    repeated = bridge.install_agency_role(root, ROLE_ONE, tool, scope=scope,
+                                          host=host, approved=True, offline=True)
+    assert repeated["action"] == "unchanged"
+
+
+def test_workbuddy_user_scope_stages_under_home_and_stays_unimported(library):
+    root = library["project"]
+    result = bridge.install_agency_role(root, ROLE_ONE, "workbuddy", scope="user", approved=True)
+    assert result["installed"] and result["installer"]["scope"] == "user"
+    assert Path(result["target"]).is_relative_to(library["home"])
+    assert result["activation"]["state"] == "manual_import_required"
+    assert result["activation"]["executed"] is False
 
 
 def test_vendor_hash_failure_happens_before_execution(library, monkeypatch, tmp_path):
@@ -349,6 +407,8 @@ def test_user_installation_reused_across_projects_without_native_alias_duplicate
     assert record_path.is_file()
     record = json.loads(record_path.read_text(encoding="utf-8"))
     assert record["tool"] == tool and record["role"]["id"] == ROLE_ONE
+    if tool in bridge.SKILL_TARGETS:
+        assert record["role"]["agent_kinds"][tool] == "skill"
     assert len(record["files"]) == len(_fake_native_outputs(tool))
     second = root.parent / "second-project"
     second.mkdir()

@@ -93,12 +93,15 @@ def _read_role(path, source):
             prompt = "\n".join(lines[end + 1:]).strip()
         if not isinstance(data, dict):
             raise ValueError("Role frontmatter must be a mapping")
-    name = data.get("name", path.stem)
-    role_id = data.get("id") or _id(path.stem)
+    skill_metadata = data.get("metadata", {})
+    skill_metadata = skill_metadata if isinstance(skill_metadata, dict) else {}
+    name = skill_metadata.get("agent_team_role_name", data.get("name", path.stem))
+    role_id = data.get("id") or skill_metadata.get("agent_team_role_id") or (
+        path.parent.name if path.name.lower() == "skill.md" else _id(path.stem))
     role = {"id": role_id, "name": name,
             "description": data.get("description", "Specialist role: " + str(name)),
-            "capabilities": _strings(data.get("capabilities"), "capabilities"),
-            "deliverables": _strings(data.get("deliverables"), "deliverables"),
+            "capabilities": _strings(data.get("capabilities", skill_metadata.get("agent_team_capabilities")), "capabilities"),
+            "deliverables": _strings(data.get("deliverables", skill_metadata.get("agent_team_deliverables")), "deliverables"),
             "prompt": prompt, "source": source, "source_path": str(path),
             "platforms": _strings(data.get("platforms", list(_ROLE_DIRS)), "platforms")}
     for key in ("role", "agent_id"):
@@ -131,6 +134,8 @@ def _scan(directory, source, project_root=None):
         for name in sorted(files):
             path = Path(current) / name
             if path.suffix.lower() not in (".md", ".toml") or path.is_symlink():
+                continue
+            if path.name.lower() == "skill.md" and path.parent.name == "agent-team-runtime":
                 continue
             if path.stem.lower() in ("readme", "agents", "claude", "gemini", "license", "contributing"):
                 continue
@@ -217,6 +222,7 @@ def build_catalog(root, platform="generic", sources=None, host=None):
         # Extra simple native formats are scanned only for the current host.
         # Multi-file formats are recovered through verified managed records.
         extra_user_dirs = {"opencode": (".config/opencode/agents",), "qwen": (".qwen/agents",),
+                           "trae": (".trae/skills",), "pi": (".agents/skills",),
                            "zcode": (".zcode/agents",), "copilot": (".github/agents", ".copilot/agents")}
         source_dirs[:0] = [{"path": Path.home() / path, "kind": "local", "platform": platform}
                           for path in extra_user_dirs.get(platform, ())]

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from agent_team import __version__
@@ -82,9 +83,38 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(main(["--project", str(self.root)]), 0)
         self.assertEqual(json.loads(out.getvalue())["path"],
                          str(self.root / ".agents/skills/agent-team-runtime"))
-        with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(main(["--platform", "claude-code"]), 2)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(main(["--project", str(self.root), "--platform", "claude-code"]), 0)
+        self.assertEqual(json.loads(out.getvalue())["path"],
+                         str(self.root / ".claude/skills/agent-team-runtime"))
         self.assertFalse((self.root / ".agents").exists())
+
+    def test_host_specific_skill_paths_and_workbuddy_import_archive(self):
+        trae = json.loads(subprocess.run([sys.executable, str(REPO / "install.py"),
+                                          "--project", str(self.root), "--platform", "trae"],
+                                         capture_output=True, text=True).stdout)
+        self.assertEqual(trae["path"], str(self.root / ".trae/skills/agent-team-runtime"))
+        pi = json.loads(subprocess.run([sys.executable, str(REPO / "install.py"),
+                                        "--project", str(self.root), "--platform", "pi"],
+                                       capture_output=True, text=True).stdout)
+        self.assertEqual(pi["path"], str(self.root / ".agents/skills/agent-team-runtime"))
+        result = subprocess.run([sys.executable, str(REPO / "install.py"), "--project", str(self.root),
+                                 "--platform", "workbuddy", "--approve"],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        archive_result = json.loads(result.stdout)
+        self.assertEqual(archive_result["status"], "prepared_for_import")
+        self.assertEqual(archive_result["activation"]["state"], "manual_import_required")
+        self.assertFalse(archive_result["installed_globally"])
+        with zipfile.ZipFile(archive_result["path"]) as archive:
+            self.assertIn("SKILL.md", archive.namelist())
+            self.assertIn("scripts/run.py", archive.namelist())
+        repeated = subprocess.run([sys.executable, str(REPO / "install.py"), "--project", str(self.root),
+                                   "--platform", "workbuddy", "--approve"],
+                                  capture_output=True, text=True)
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertEqual(json.loads(repeated.stdout)["status"], "prepared_for_import")
 
     def test_cold_bundle_runner_without_site_packages(self):
         export_bundle(self.destination)

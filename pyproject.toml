@@ -20,6 +20,9 @@ agent-team = "agent_team.cli:main"
 include = ["agent_team*"]
 namespaces = false
 
+[tool.setuptools]
+include-package-data = false
+
 [tool.setuptools.package-data]
 agent_team = ["skill/SKILL.md", "skill/agents/*.yaml", "skill/references/*.md", "skill/scripts/*.py", "data/*.json", "data/*.txt", "data/agency-installer/*.json", "data/agency-installer/scripts/*.sh"]
 

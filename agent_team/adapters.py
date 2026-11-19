@@ -16,6 +16,14 @@ _ROLE_DIRS = {
 # These portable definitions support handoffs. Agency's installer, not this
 # generic renderer, produces the native formats for the additional tools.
 _ROLE_DIRS.update({tool: ".agent-team/roles/" + tool for tool in PLATFORMS if tool not in _ROLE_DIRS})
+_ROLE_DIRS.update({
+    # These hosts consume Agent Skills, not Agency's native agent formats.
+    "trae": ".trae/skills",
+    "pi": ".agents/skills",
+    # WorkBuddy's public docs expose UI import, not a stable on-disk directory.
+    "workbuddy": ".agent-team/workbuddy-imports",
+})
+SKILL_PLATFORMS = ("trae", "pi", "workbuddy")
 
 
 def _platform(platform):
@@ -40,6 +48,7 @@ def detect_platform(root, env=None):
     for directory, platform in ((".codex", "codex"), (".claude", "claude-code"),
                                 (".cursor", "cursor"), (".gemini", "gemini-cli"),
                                 (".opencode", "opencode"), (".qwen", "qwen"),
+                                (".trae", "trae"), (".pi", "pi"),
                                 (".vibe", "vibe"), (".zcode", "zcode"), (".dsh", "dsh")):
         if (root / directory).is_dir():
             return platform
@@ -77,11 +86,18 @@ def capabilities(platform, host=None):
 def entry_path(platform):
     _platform(platform)
     return {"claude-code": "CLAUDE.md", "cursor": ".cursor/rules/agent-team.mdc",
+            "trae": ".trae/rules/agent-team-runtime.md",
             "gemini-cli": "GEMINI.md"}.get(platform, "AGENTS.md")
 
 
 def entry_text(platform):
     _platform(platform)
+    skill_path = {
+        "codex": ".agents/skills/agent-team-runtime/SKILL.md",
+        "pi": ".agents/skills/agent-team-runtime/SKILL.md",
+        "claude-code": ".claude/skills/agent-team-runtime/SKILL.md",
+        "trae": ".trae/skills/agent-team-runtime/SKILL.md",
+    }.get(platform, ".agents/skills/agent-team-runtime/SKILL.md")
     text = ("<!-- agent-team-runtime:begin -->\n"
             "At each new session or task, assess collaboration value from the request and available context; users need not mention Agent Team Builder.\n"
             "Default to one agent. Handle simple tasks directly, without loading the full team configuration or Skill.\n"
@@ -92,11 +108,21 @@ def entry_text(platform):
             "Initialize only for first enablement; preserve damaged configuration and report it. Explicit installation, upgrade, repair, or diagnostic requests follow their own workflow.\n"
             "Delegate only within existing user authorization and host restrictions, with explicit host capability evidence.\n"
             "Locate agent-team-runtime through the host's discovered Skills.\n"
-            "For a project installation, read .agents/skills/agent-team-runtime/SKILL.md; in this source repository, read agent_team/skill/SKILL.md.\n"
+            "For a project installation, read " + skill_path + "; in this source repository, read agent_team/skill/SKILL.md.\n"
             "If neither is available, use the host's installation/discovery workflow before enabling team features.\n"
             "<!-- agent-team-runtime:end -->\n")
     if platform == "cursor":
         return '---\ndescription: Agent Team Runtime project entry\nalwaysApply: true\n---\n\n' + text
+    if platform == "trae":
+        return '---\nalwaysApply: true\n---\n\n' + text
+    if platform == "workbuddy":
+        note = ("WorkBuddy Skills are imported through the Skills UI. A project file alone does not confirm "
+                "that WorkBuddy loaded this Skill; verify it appears in the current project's Skills.\n")
+        return text.replace("<!-- agent-team-runtime:end -->", note + "<!-- agent-team-runtime:end -->")
+    if platform == "pi":
+        note = ("Pi discovers project Skills in .agents/skills. Use /reload or restart the session after "
+                "installing a Skill into an already-running session.\n")
+        return text.replace("<!-- agent-team-runtime:end -->", note + "<!-- agent-team-runtime:end -->")
     return text
 
 
@@ -111,7 +137,17 @@ def render_role(role, platform):
     description = role.get("description") or "Specialist role: " + name
     if not isinstance(description, str):
         raise ValueError("Role description must be a string.")
-    if platform == "codex":
+    if platform in SKILL_PLATFORMS:
+        # These targets accept Agent Skills-style instructions. A Skill is not
+        # a native callable subagent, so callers must keep that distinction.
+        metadata = {"name": role_id, "description": description,
+                    "metadata": {"agent_team_role_id": role_id, "agent_team_role_name": name.strip(),
+                                 "agent_team_capabilities": role.get("capabilities", []),
+                                 "agent_team_deliverables": role.get("deliverables", [])}}
+        content = "---\n" + yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False) + "---\n\n"
+        content += "# " + name.strip() + "\n\n" + prompt.rstrip() + "\n"
+        suffix = "/SKILL.md"
+    elif platform == "codex":
         # JSON basic strings are valid TOML basic strings for ordinary Unicode text.
         content = "\n".join('%s = %s' % (key, json.dumps(value, ensure_ascii=False))
                             for key, value in (("name", role_id), ("description", description),

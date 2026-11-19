@@ -4,6 +4,8 @@ Upstream scripts never run against the real home or destination. Native host
 registration and plugin activation remain separate from copying definitions.
 """
 import copy
+import base64
+import io
 import hashlib
 import json
 import os
@@ -13,12 +15,14 @@ import shutil
 import subprocess
 import tempfile
 import warnings
+import zipfile
 
 from . import agency
 from .adapters import capabilities, render_role
 from .storage import project_lock, read_yaml, safe_path, validate_team, write_yaml
 
 VENDOR = Path(__file__).parent / "data/agency-installer"
+SKILL_TARGETS = {"trae", "pi", "workbuddy"}
 # install.sh --path is a directory, whereas tools.json dest describes files.
 DESTINATIONS = {
     "claude-code": {"project": [".claude/agents"], "user": [".claude/agents"]},
@@ -33,10 +37,24 @@ DESTINATIONS = {
     "aider": {"project": ["."]}, "windsurf": {"project": ["."]},
     "kimi": {"user": [".config/kimi/agents"]},
     "openclaw": {"user": [".openclaw/agency-agents"]},
+    "trae": {"project": [".trae/skills"], "user": [".trae/skills"]},
+    "pi": {"project": [".agents/skills"], "user": [".agents/skills"]},
+    "workbuddy": {"project": [".agent-team/workbuddy-imports"],
+                  "user": [".agent-team/workbuddy-imports"]},
     "vibe": {"project": [".vibe"], "user": [".vibe"]},
     "zcode": {"project": [".zcode/agents"], "user": [".zcode/agents"]},
     "dsh": {"project": [".dsh/skills"], "user": [".dsh/skills"]},
 }
+
+
+def _skill_zip(files):
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as package:
+        for name, content in sorted(files.items()):
+            info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            package.writestr(info, content)
+    return archive.getvalue()
 
 
 def _hash(data):
@@ -60,22 +78,39 @@ def _vendor_files():
 def supported_tools():
     manifest, files = _vendor_files()
     tools = json.loads(files["tools.json"])["tools"]
+    result = [dict(id=key, name=value["label"], format=value["format"],
+                   kind=value["installKind"], scopes=list(DESTINATIONS.get(key, {})),
+                   upstream_scope=value["scope"], destinations=value["dest"],
+                   installer="agency-upstream", installation_supported=key in DESTINATIONS,
+                   native_available=None,
+                   note=("Hermes installs and enables a router plugin, not a single role; "
+                         "plugin/config integration is not supported by this role installer."
+                         if key == "hermes" else
+                         "Workspace files only; native OpenClaw registration is a separate action."
+                         if key == "openclaw" else
+                         "Selected roles share one managed roster; existing user content is preserved."
+                         if value["installKind"] == "roster" else
+                         "Files require host discovery; installation does not prove invocation."))
+              for key, value in tools.items()]
+    result.extend([
+        dict(id="trae", name="TRAE", format="Agent Skills (SKILL.md)", kind="skill",
+             scopes=["project", "user"], destinations=DESTINATIONS["trae"],
+             installer="agent-team-skill-adapter", installation_supported=True, native_available=None,
+             note="Creates a discoverable Skill; it does not create a native callable custom Agent. "
+                  "Project rules or the .agents Skills directory may need enabling in TRAE settings."),
+        dict(id="pi", name="Pi", format="Agent Skills (SKILL.md)", kind="skill",
+             scopes=["project", "user"], destinations=DESTINATIONS["pi"],
+             installer="agent-team-skill-adapter", installation_supported=True, native_available=None,
+             note="Creates a discoverable Skill; native subagent calls require a separately available extension."),
+        dict(id="workbuddy", name="WorkBuddy", format="Agent Skill import package (SKILL.md)", kind="skill-package",
+             scopes=["project", "user"], destinations=DESTINATIONS["workbuddy"],
+             installer="agent-team-skill-adapter", installation_supported=True, native_available=None,
+             note="Stages a role Skill for manual import through WorkBuddy's Skills UI; public docs do not specify "
+                  "a stable local project discovery path."),
+    ])
     return {"repository": manifest["repository"], "revision": manifest["revision"],
-            "prerequisites": ["Bash 3.2+", "standard Unix utilities", "Perl for TOML conversion"],
-            "tools": [dict(id=key, name=value["label"], format=value["format"],
-                           kind=value["installKind"], scopes=list(DESTINATIONS.get(key, {})),
-                           upstream_scope=value["scope"], destinations=value["dest"],
-                           installation_supported=key in DESTINATIONS,
-                           native_available=None,
-                           note=("Hermes installs and enables a router plugin, not a single role; "
-                                 "plugin/config integration is not supported by this role installer."
-                                 if key == "hermes" else
-                                 "Workspace files only; native OpenClaw registration is a separate action."
-                                 if key == "openclaw" else
-                                 "Selected roles share one managed roster; existing user content is preserved."
-                                 if value["installKind"] == "roster" else
-                                 "Files require host discovery; installation does not prove invocation."))
-                      for key, value in tools.items()]}
+            "prerequisites": ["Bash 3.2+", "standard Unix utilities", "Perl for upstream TOML conversion"],
+            "tools": result}
 
 
 def _strict_path(root, relative):
@@ -100,6 +135,15 @@ def _run(command, cwd, env):
 
 
 def _stage(profiles, tool, vendor_files):
+    if tool in SKILL_TARGETS:
+        output = {}
+        for profile in profiles:
+            rendered = render_role(profile, tool)
+            if tool == "workbuddy":
+                output[profile["id"] + ".zip"] = _skill_zip({"SKILL.md": rendered["content"].encode("utf-8")})
+            else:
+                output[profile["id"] + "/SKILL.md"] = rendered["content"].encode("utf-8")
+        return output
     bash = shutil.which("bash")
     if not bash:
         raise ValueError("Agency installer requires Bash and Unix utilities (Windows: Git Bash/WSL). "
@@ -147,7 +191,20 @@ def _stage(profiles, tool, vendor_files):
         return files
 
 
-def _activation(tool, agent_id, targets):
+def _activation(tool, agent_id, targets, scope=None):
+    if tool == "workbuddy":
+        return {"state": "manual_import_required", "executed": False,
+                "instructions": "This ZIP is an import artifact, not an installed WorkBuddy skill. "
+                                "Import it in WorkBuddy's Skills UI and choose the " + (scope or "selected") + " scope; verify it appears "
+                                "in the current project before use."}
+    if tool in ("trae", "pi"):
+        instructions = ("The Skill file is installed. Verify TRAE discovers it; TRAE may require enabling the "
+                        ".trae/skills or .agents/skills location in Settings. " if tool == "trae" else
+                        "The Skill file is installed under .agents/skills, which Pi discovers. Use /reload or "
+                        "restart if the current session already scanned Skills. ")
+        return {"state": "skill_discovery_required", "executed": False,
+                "instructions": instructions +
+                                "A Skill is not a native callable subagent; verify delegation separately."}
     if tool == "openclaw":
         workspace = str(Path(targets[0]).parent)
         return {"state": "registration_required", "executed": False,
@@ -228,7 +285,7 @@ def install_agency_role(root, role_id, tool, scope="project", approved=False, ho
                  for identifier in role_ids]
                 if tool in ("aider", "windsurf") else [profile])
     outputs = _stage(profiles, tool, vendor_files)
-    native_id = Path(next(iter(outputs))).stem
+    native_id = role_id if tool in SKILL_TARGETS else Path(next(iter(outputs))).stem
     if tool in ("antigravity", "osaurus", "dsh", "kimi", "openclaw"):
         native_id = next(iter(outputs)).split("/")[0]
     elif tool == "codex":
@@ -258,6 +315,8 @@ def install_agency_role(root, role_id, tool, scope="project", approved=False, ho
         # on the first project's cache/registry.
         reusable = {key: profile[key] for key in ("id", "name", "description", "capabilities", "deliverables", "prompt", "upstream")}
         reusable.update(platforms=[tool], agent_id=native_id)
+        if tool in SKILL_TARGETS:
+            reusable["agent_kinds"] = {tool: "skill"}
         record = {"schema_version": 1, "tool": tool, "role": reusable,
                   "files": {name: _hash(data) for name, data in writes.items()}}
         relative = ".agent-team/agency-roles/%s/%s.json" % (tool, role_id)
@@ -276,23 +335,34 @@ def install_agency_role(root, role_id, tool, scope="project", approved=False, ho
         if update and not (tool in ("aider", "windsurf") and base == destination
                            and _hash(existing) == old_hashes.get(relative)):
             raise ValueError("Role file already exists with different content; refusing to overwrite: " + str(path))
-        entries.append({"path": str(path), "relative": relative, "sha256": _hash(data),
-                        "action": "update" if update else "unchanged" if existing is not None else "create",
-                        "content": data.decode("utf-8")})
+        action = "update" if update else "unchanged" if existing is not None else "create"
+        entry = {"path": str(path), "relative": relative, "sha256": _hash(data), "action": action}
+        if relative.endswith(".zip"):
+            entry["content_base64"] = base64.b64encode(data).decode("ascii")
+            with zipfile.ZipFile(io.BytesIO(data)) as package:
+                entry["archive_files"] = [{"path": name, "content": package.read(name).decode("utf-8")}
+                                           for name in package.namelist()]
+        else:
+            entry["content"] = data.decode("utf-8")
+        entries.append(entry)
     verified = capabilities(tool, host)
-    native = verified["native_subagents"] and any(
-        name in verified["available_agents"] for name in (native_id, role_id, profile["name"]))
+    native = (False if tool in SKILL_TARGETS else verified["native_subagents"] and any(
+        name in verified["available_agents"] for name in (native_id, role_id, profile["name"])))
     targets = [str(_strict_path(destination, name)) for name in writes]
+    backend = "agent-team-skill-adapter" if tool in SKILL_TARGETS else "agency-upstream"
+    mechanism = ("manual-import-package" if tool == "workbuddy" else
+                 "skill-file" if tool in ("trae", "pi") else
+                 "converter-only" if tool == "openclaw" else "convert-and-install")
     result = {"id": role_id, "name": profile["name"], "source": "agency", "upstream": profile["upstream"],
-              "installer": {"backend": "agency-upstream", "revision": manifest["revision"],
-                            "tool": tool, "scope": scope,
-                            "mechanism": "converter-only" if tool == "openclaw" else "convert-and-install"},
+              "installer": {"backend": backend, "revision": manifest["revision"],
+                            "tool": tool, "scope": scope, "mechanism": mechanism},
               "path": canonical["path"], "target": targets[0], "targets": targets,
               "files": entries, "agent_id": native_id,
               "permissions": ["write selected %s role files" % scope, "update project team registry"],
               "approved": approved is True, "installed": False, "action": "preview",
               "status": "available" if native else "unavailable", "native_available": native,
-              "activation": _activation(tool, native_id, targets)}
+              "skill_available": tool in SKILL_TARGETS,
+              "activation": _activation(tool, native_id, targets, scope)}
     if approved is not True:
         result["confirmation"] = {"kind": "role_installation", "role_id": role_id, "name": profile["name"],
                                   "tool": tool, "scope": scope, "target": result["target"],
@@ -321,6 +391,8 @@ def install_agency_role(root, role_id, tool, scope="project", approved=False, ho
                       deliverables=profile["deliverables"], upstream=profile["upstream"], status="installed")
         member["platforms"] = list(dict.fromkeys(member.get("platforms", []) + [tool]))
         member.setdefault("agent_ids", {})[tool] = native_id
+        if tool in SKILL_TARGETS:
+            member.setdefault("agent_kinds", {})[tool] = "skill"
         member["agent_id"] = native_id
         records = updated.setdefault("agency_installations", {})
         records[key] = {"roles": role_ids, "files": dict(old_hashes, **{name: _hash(data) for name, data in writes.items()})}

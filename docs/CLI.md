@@ -14,7 +14,7 @@ agent-team --project /absolute/path/to/project --platform codex init
 agent-team --project /absolute/path/to/project status
 ```
 
-未安装命令时，可在本仓库使用 `python3 -m agent_team`。`--platform` 接受 `codex`、`claude-code`、`cursor`、`gemini-cli`、`copilot`、`opencode`、`qwen`、`antigravity`、`aider`、`windsurf`、`kimi`、`osaurus`、`openclaw`、`hermes`、`vibe`、`zcode`、`dsh` 和 `generic`。名称被接受不代表所有功能或原生委派已受支持；Agency 文件安装矩阵由 `role tools` 返回。`auto` 只判断配置上下文，不能证明平台具备 Subagents；上下文不明确时由宿主提供实际平台，未知宿主使用 `generic`。
+未安装命令时，可在本仓库使用 `python3 -m agent_team`。`--platform` 接受 `codex`、`claude-code`、`cursor`、`gemini-cli`、`copilot`、`opencode`、`qwen`、`antigravity`、`aider`、`windsurf`、`kimi`、`osaurus`、`openclaw`、`hermes`、`vibe`、`zcode`、`dsh`、`workbuddy`、`trae`、`pi` 和 `generic`。名称被接受不代表所有功能或原生委派已受支持；具体格式、作用域与手动导入要求由 `role tools` 返回。`auto` 只判断配置上下文，不能证明平台具备 Subagents；上下文不明确时由宿主提供实际平台，未知宿主使用 `generic`。
 
 所有参数 `--project`、`--platform`、`--host` 放在子命令之前。输出为 JSON；失败输出结构化错误到 stderr，退出码 2。
 
@@ -147,9 +147,9 @@ agent-team --project /project --platform generic role install --agency AGENCY_RO
 
 桥接随包携带固定 revision 的上游安装/转换脚本和元数据，执行前检查 hash，并要求脚本与角色索引 revision 一致。维护者在干净的上游 checkout 先运行 `scripts/build_agency_index.py CHECKOUT`，再用同 revision 执行 `scripts/build_agency_installer.py CHECKOUT [--data DATA]` 更新五个固定资源及 manifest；发布前审查脚本副作用、作用域变化并测试，不能单独切换索引 revision。正文只从本次和合并所需的既有已选角色按需获取，无需用户 clone 上游。脚本使用临时 HOME 和临时目标生成产物，再由本项目预览所有真实写入路径、确认后保存定义与团队记录；不直接把真实用户目录交给上游脚本。
 
-`role tools` 返回上游 17 个目标的 format、installKind、destinations、作用域和限制。16 个目标支持文件安装；Hermes 是需启用配置的路由插件，当前角色安装器明确拒绝。`--scope project` 默认值不自动扩展：Kimi、Osaurus、OpenClaw 仅支持 `user`，必须由用户明确选择。Cursor、Aider、Windsurf 仅支持 `project`，其他已支持目标可选 `project` / `user`。用户范围安装仍在当前项目保存可移植定义和团队记录。
+`role tools` 返回 Agency 上游 17 个目标及本项目 WorkBuddy、Trae、Pi 扩展目标的 format、installKind、destinations、作用域和限制。Agency 16 个目标支持上游文件安装；Hermes 路由插件安装器明确拒绝。WorkBuddy 生成 Skills UI 导入包；Trae/Pi 生成 Agent Skills，不声称是原生子 Agent。`--scope project` 默认值不自动扩展：Kimi、Osaurus、OpenClaw 仅支持 `user`，WorkBuddy 只准备 project 导入包；必须由用户通过其 Skills UI 选择导入范围。Cursor、Aider、Windsurf 仅支持 `project`，其他支持宿主可选 `project` / `user`。用户范围安装仍在当前项目保存可移植定义和团队记录。
 
-上游桥接需要 Bash 3.2+ 和标准 Unix 工具；TOML 转换需 Perl。Windows 需要 Git Bash/WSL。缺少依赖时报告可用选项，只有用户选择内置可移植方式后才切换后端并重新预览。完整流程和目标表见 [Agency 安装参考](../agent_team/skill/references/agency-installation.md)。
+Agency 上游桥接需要 Bash 3.2+ 和标准 Unix 工具；TOML 转换需 Perl。Windows 需要 Git Bash/WSL。WorkBuddy、Trae、Pi 使用本项目直接生成的标准 Agent Skills 文件或 ZIP，不依赖 Agency shell 转换器。完整流程和目标表见 [Agency 安装参考](../agent_team/skill/references/agency-installation.md)。
 
 返回结果包含 `installer`（backend、revision、tool、scope、mechanism）、精确 `files`、`targets`、`agent_id`、`native_available` 和 `activation`。项目记录保存上游来源、各宿主 Agent ID 与安装文件 hash。Aider/Windsurf 的合并文件由此前已选角色与本次角色共同重建，只有未被用户修改的托管文件才更新；Aider 原文存入持久项目路径，避免索引引用临时目录。重建所需角色也复用校验缓存，`--offline` 缺缓存时失败。
 
