@@ -104,3 +104,7 @@ Skill 提供面向用户的工作流程；可选的 Python 引擎负责配置校
 - [输入示例](examples/)：供 Agent 内部工具使用的任务和宿主格式。
 
 **欢迎参与：** 提交可复现的问题、平台集成结果、文档改进或翻译。可以[创建 Issue](https://github.com/houchaoxu/agent-team-builder/issues)或提交 Pull Request。开发环境与测试命令见[引擎参考](docs/CLI.md#验证)。
+
+## 🙏 致谢与支持
+
+Agent Team Builder 的角色素材库和多宿主安装适配能力，基于优秀的开源项目 [Agency-Agents](https://github.com/msitarzewski/agency-agents)。感谢它的维护者和贡献者分享这套角色库。如果它也对你的工作有帮助，欢迎前往上游项目点亮 ⭐，并通过提交 Issue 或贡献代码支持项目持续发展。

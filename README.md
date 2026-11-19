@@ -104,3 +104,7 @@ If the installed role is not yet callable natively, a supported generic subagent
 - [Examples](examples/) — task and host input formats for agent tooling.
 
 **Contributions welcome:** reproducible bug reports, host integration results, documentation, and translations. [Open an issue](https://github.com/houchaoxu/agent-team-builder/issues) or send a pull request. Developer setup and test commands are in the [engine reference](docs/CLI.md#验证).
+
+## 🙏 Thanks
+
+Agent Team Builder's role library and multi-agent installation adapters build on the excellent open-source work of [Agency-Agents](https://github.com/msitarzewski/agency-agents). Thank you to its maintainers and contributors for making this role library available. If it helps your workflow, visit the upstream project, give it a ⭐, and support its continued development through issues or contributions.
