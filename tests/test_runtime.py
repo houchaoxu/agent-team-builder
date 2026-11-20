@@ -90,7 +90,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(assisted['execution']['mode'], 'assisted')
         self.assertEqual(assisted['execution']['strategy'], 'sequential_handoffs')
         host = {'native_subagents': True, 'evidence': 'active API inventory',
-                'available_agents': ['implementer'], 'max_parallel_agents': 10}
+                'available_agents': ['implementer'], 'max_parallel_agents': 10, 'parallel_writes': True}
         parallel = plan_task(self.root, self.spec(80, items), host)
         self.assertEqual(parallel['execution']['strategy'], 'native_subagents')
         self.assertEqual(parallel['execution']['batches'], [['a', 'b']])

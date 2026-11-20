@@ -38,6 +38,12 @@ HOST_INSTALLERS = {
         "claude-code", ".claude/skills/agent-team-runtime", ".claude/skills/agent-team-runtime",
         "Claude Code discovers project Skills from .claude/skills and user Skills from ~/.claude/skills. "
         "The Skill is available after the host scans or reloads Skills."),
+    "trae": SkillDirectoryInstaller(
+        "trae", ".trae/skills/agent-team-runtime", ".trae/skills/agent-team-runtime",
+        "Verify TRAE project Skills are enabled and discovered; file installation does not prove subagent support."),
+    "pi": SkillDirectoryInstaller(
+        "pi", ".agents/skills/agent-team-runtime", ".agents/skills/agent-team-runtime",
+        "Use /reload or restart Pi after installing Skills into an already-running session; verify delegation separately."),
 }
 
 

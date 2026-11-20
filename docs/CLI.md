@@ -55,9 +55,9 @@ agent-team --project /project plan examples/simple-task.yaml
 | --- | --- | --- |
 | <40 | single_agent | 0 |
 | 40–69 | assisted | 1 |
-| ≥70 | multi_agent | 3 |
+| ≥70 | multi_agent | 项目默认 3，受宿主实际能力限制 |
 
-分数之外还要求独立交付物、明确写入边界和预期收益。依赖关系按批次执行，同一文件/父子目录的写入冲突必须串行或拒绝。自定义策略不能突破硬上限3；低于40的快速路径固定为单 Agent，以免为了决策加载项目团队。
+分数之外还要求独立交付物、明确写入边界和预期收益。依赖关系按批次执行，同一文件/父子目录的写入冲突必须串行或拒绝。项目可配置正整数并发上限，实际并发取项目策略与当前宿主限制中较小者，宿主限制未知时使用 1；写入任务仅在本次验证 `parallel_writes: true` 时可并行。低于40的快速路径固定为单 Agent，以免为了决策加载项目团队。
 
 ```sh
 agent-team --project /project --platform codex plan /tmp/spec.yaml
@@ -68,13 +68,18 @@ agent-team --project /project task show TASK_ID
 无能力证明时生成顺序角色工作流。当前宿主确实提供 Subagent 工具时，由主 Agent 写本次会话 `host.yaml`：
 
 ```yaml
+schema_version: 1
+platform: codex
+session_id: 当前会话实际标识
 native_subagents: true
 evidence: 当前会话工具列表包含实际委派工具，已核对可用角色
 available_agents: [真实角色ID]
+delegation_tool: 当前实际委派工具
+result_tool: 当前实际结果工具
 max_parallel_agents: 3
 ```
 
-通过 `--host /tmp/host.yaml plan /tmp/spec.yaml` 生成可供宿主执行的 handoffs 和 batches。只有当前明确可用的角色才可安排原生委派。role.id、role.role 或实际 agent_id 的映射以团队配置为准。
+通过 `--host /tmp/host.yaml plan /tmp/spec.yaml` 生成可供宿主执行的 handoffs 和 batches。优先选择当前明确可用的原生角色；没有对应角色时，按已证明的能力使用通用子 Agent 加载角色指令或临时专业角色，再降级为顺序交接。`execution.agents` 分别保留专业角色 `member_id`、实际执行者 `agent_id` 和 `execution_mode`；不把通用执行者称为已注册的同名专家。当前明确指定的平台优先于团队创建时的平台。
 
 主 Agent 使用真实 spawn/delegate 工具执行交接，等待实际结果、处理失败并验收。CLI 记录状态，未内嵌宿主私有 RPC，也不启动伪 Agent 进程。`running` 是用户/宿主报告的状态，不能证明有后台进程。
 
@@ -85,6 +90,21 @@ agent-team --project /project task update TASK_ID completed \
 ```
 
 evidence 必须是非空映射，记录实际测试、产物、结果和未验证项；示例见 `examples/evidence.yaml`，示例本身不是执行证明。可加 `--metrics /tmp/metrics.yaml` 保存宿主真实统计。未知 Token、时长和质量保持 `null`，不估算缓存命中或成本节约。计划与角色 Prompt 的边界是协作约定，真实权限隔离由宿主沙箱提供。
+
+## 宿主能力协商与验收
+
+安装或修复适配时，主 Agent 根据当前工具列表、真实角色及权限准备本次 `--host` 文件。新格式使用 `schema_version: 1`，要求真实 `platform`、`session_id` 和 `evidence`；未提供证据的能力保持未知，旧格式仍兼容。平台名称、文件格式和历史成功记录都不证明本次会话可调用性。
+
+```sh
+agent-team --project /project --platform workbuddy --host /tmp/current-host.json host inspect
+agent-team --project /project --platform workbuddy --host /tmp/current-host.json host verify /tmp/receipt.json
+```
+
+`host inspect` 返回 `adapter` 安装契约、`capabilities` 当前能力、`registration` 当前注册工具、`execution` 可用运输方式和独立的 `verification` 阶段。没有具体角色输入时不会判定某个原生专家可用；具体角色的 `native_role`、`generic_subagent`、`dynamic_subagent` 或 `sequential_handoff` 路由在 `plan` 的 `handoffs[].transport` 中给出。通用执行需要 `accepts_role_instructions: true`，且 `generic_agent_id` 必须在真实 `available_agents` 中；临时执行还须提供 `dynamic_agents: true` 和真实 `delegation_tool`。这些方式都要求当前 `native_subagents` 证据；通用和临时执行还必须有已加载的非空角色正文。
+
+`host verify` 校验由宿主实际观察生成的回执，不负责创建角色或执行烟测。回执的 schema、平台、session_id 必须与本次证据一致，`checks` 可分别记录 `files_installed`、`skill_discovered`、`role_registered`、`agent_invoked`、`result_received`，状态为 passed/failed/pending。非 pending 项要求实际 evidence；调用和返回成功需有真实 `agent_id`，结果必须对应同一回执中的成功调用。记录保存在 `.agent-team/hosts/<platform>.json`，以后通过 `last_verification` 独立展示，不升级新会话能力。
+
+安装后在授权范围内执行一次最小只读调用，实际取得调用 ID 与返回结果，再记录已验证的阶段；无法验证则报告待加载、待注册或实际执行限制。普通简单任务不运行能力扫描或验收；复杂任务只复核即将使用的工具。字段说明及宿主版本边界见 [宿主能力协商](../agent_team/skill/references/host-capabilities.md)。
 
 ## 角色市场
 
@@ -147,7 +167,7 @@ agent-team --project /project --platform generic role install --agency AGENCY_RO
 
 桥接随包携带固定 revision 的上游安装/转换脚本和元数据，执行前检查 hash，并要求脚本与角色索引 revision 一致。维护者在干净的上游 checkout 先运行 `scripts/build_agency_index.py CHECKOUT`，再用同 revision 执行 `scripts/build_agency_installer.py CHECKOUT [--data DATA]` 更新五个固定资源及 manifest；发布前审查脚本副作用、作用域变化并测试，不能单独切换索引 revision。正文只从本次和合并所需的既有已选角色按需获取，无需用户 clone 上游。脚本使用临时 HOME 和临时目标生成产物，再由本项目预览所有真实写入路径、确认后保存定义与团队记录；不直接把真实用户目录交给上游脚本。
 
-`role tools` 返回 Agency 上游 17 个目标及本项目 WorkBuddy、Trae、Pi 扩展目标的 format、installKind、destinations、作用域和限制。Agency 16 个目标支持上游文件安装；Hermes 路由插件安装器明确拒绝。WorkBuddy 生成 Skills UI 导入包；Trae/Pi 生成 Agent Skills，不声称是原生子 Agent。`--scope project` 默认值不自动扩展：Kimi、Osaurus、OpenClaw 仅支持 `user`，WorkBuddy 只准备 project 导入包；必须由用户通过其 Skills UI 选择导入范围。Cursor、Aider、Windsurf 仅支持 `project`，其他支持宿主可选 `project` / `user`。用户范围安装仍在当前项目保存可移植定义和团队记录。
+`role tools` 返回 Agency 上游 17 个目标及本项目 WorkBuddy、Trae、Pi 扩展目标的 format、installKind、destinations、作用域和限制。Agency 16 个目标支持上游文件安装；Hermes 路由插件安装器明确拒绝。WorkBuddy 的文件后端生成所选范围的 Skills 导入包，Trae/Pi 生成 Agent Skills；这些文件本身不注册原生子 Agent，也不代表产品没有子 Agent 能力。`--scope project` 默认值不自动扩展：Kimi、Osaurus、OpenClaw 仅支持 `user`；WorkBuddy 若走 UI 导入须选择与预览一致的范围。Cursor、Aider、Windsurf 仅支持 `project`，其他支持宿主可选 `project` / `user`。用户范围安装仍在当前项目保存可移植定义和团队记录。
 
 Agency 上游桥接需要 Bash 3.2+ 和标准 Unix 工具；TOML 转换需 Perl。Windows 需要 Git Bash/WSL。WorkBuddy、Trae、Pi 使用本项目直接生成的标准 Agent Skills 文件或 ZIP，不依赖 Agency shell 转换器。完整流程和目标表见 [Agency 安装参考](../agent_team/skill/references/agency-installation.md)。
 
@@ -155,7 +175,7 @@ Agency 上游桥接需要 Bash 3.2+ 和标准 Unix 工具；TOML 转换需 Perl�
 
 OpenClaw 只用上游转换器生成工作区文件，`installer.mechanism=converter-only`、`activation.state=registration_required`，不执行真实 CLI 注册或 gateway restart。后续注册/重启须有明确授权并核对实际宿主状态；待执行命令不代表已执行。其他目标的 `activation` 同样要求独立验证发现与调用，不能从格式支持推断原生多 Agent 支持。
 
-平台和版本变化时，以当前宿主实际工具及其官方文档为准。Codex 格式依据[官方 Subagents 文档](https://developers.openai.com/codex/subagents/)，需有 `name`、`description`、`developer_instructions`。Cursor/Gemini 的原生子 Agent 支持仍由宿主提供证据；没有证据时使用顺序交接。
+平台和版本变化时，以当前宿主实际工具及其官方文档为准。Codex 格式依据[官方 Subagents 文档](https://developers.openai.com/codex/subagents/)，需有 `name`、`description`、`developer_instructions`。WorkBuddy 的[专家中心文档](https://www.workbuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Expert-Center)区分 Skill、专家与专家团。所有宿主的原生注册和委派仍需当前会话工具证据；有已核实注册工具时由宿主按实际契约执行，不猜目录/API，也不由产品能力说明推断当前会话已开放权限。
 
 ## 记忆与统计
 

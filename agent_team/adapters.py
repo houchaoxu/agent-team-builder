@@ -1,9 +1,7 @@
 """Conservative host capability checks and project-local role formats."""
 
 import json
-import os
 import re
-from pathlib import Path
 
 import yaml
 
@@ -34,52 +32,16 @@ def _platform(platform):
 
 def detect_platform(root, env=None):
     """Detect configuration context, without asserting execution capability."""
-    env = os.environ if env is None else env
-    explicit = env.get("AGENT_TEAM_PLATFORM")
-    if explicit:
-        return _platform(explicit)
-    markers = (("CODEX_THREAD_ID", "codex"), ("CODEX_HOME", "codex"),
-               ("CLAUDE_CODE_ENTRYPOINT", "claude-code"),
-               ("CURSOR_AGENT", "cursor"), ("GEMINI_CLI", "gemini-cli"))
-    for marker, platform in markers:
-        if env.get(marker):
-            return platform
-    root = Path(root)
-    for directory, platform in ((".codex", "codex"), (".claude", "claude-code"),
-                                (".cursor", "cursor"), (".gemini", "gemini-cli"),
-                                (".opencode", "opencode"), (".qwen", "qwen"),
-                                (".trae", "trae"), (".pi", "pi"),
-                                (".vibe", "vibe"), (".zcode", "zcode"), (".dsh", "dsh")):
-        if (root / directory).is_dir():
-            return platform
-    return "generic"
+    from .hosts import detect_host
+    return detect_host(root, env)
 
 
 def capabilities(platform, host=None):
-    _platform(platform)
-    host = host or {}
-    evidence = host.get("evidence")
-    verified = host.get("native_subagents") is True and isinstance(evidence, str) and bool(evidence.strip())
-    agents = host.get("available_agents", [])
-    agents = list(dict.fromkeys(a for a in agents if isinstance(a, str) and a.strip())) if isinstance(agents, list) else []
-    parallel = host.get("max_parallel_agents", 3)
-    parallel = min(3, max(1, parallel)) if type(parallel) is int else 3
-    result = {
-        "platform": platform, "native_subagents": verified,
-        "evidence": evidence.strip() if verified else None,
-        "available_agents": agents if verified else [],
-        "max_parallel_agents": parallel if verified else 0,
-        "strategy": "native_subagents" if verified else "single_agent",
-        "warnings": [] if verified else ["Native subagent execution requires explicit host capability evidence."],
-    }
-    explicit_evidence = isinstance(evidence, str) and bool(evidence.strip())
-    for field in ("shared_workspace", "worktree", "parallel_writes", "results_errors"):
-        value = host.get(field)
-        result[field] = value if explicit_evidence and type(value) is bool else None
-    constraints = host.get("permission_constraints")
-    result["permission_constraints"] = (list(constraints) if explicit_evidence and isinstance(constraints, list)
-                                         and all(isinstance(item, str) for item in constraints) else None)
-    result["capability_evidence"] = evidence.strip() if explicit_evidence else None
+    from .hosts import negotiate
+    result = negotiate(platform, host)
+    verified = result["native_subagents"] is True
+    result.update(native_subagents=verified, capability_evidence=result["evidence"],
+                  strategy="native_subagents" if verified else "single_agent")
     return result
 
 

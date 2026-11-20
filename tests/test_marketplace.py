@@ -25,7 +25,7 @@ def test_capability_requires_explicit_evidence(platform):
     assert not capabilities(platform, {"native_subagents": "true", "evidence": "tool"})["native_subagents"]
     cap = capabilities(platform, {"native_subagents": True, "evidence": "runtime tool inventory",
                                   "available_agents": ["reviewer"], "max_parallel_agents": 99})
-    assert cap["native_subagents"] and cap["max_parallel_agents"] == 3
+    assert cap["native_subagents"] and cap["max_parallel_agents"] == 99
     assert cap["available_agents"] == ["reviewer"]
 
 

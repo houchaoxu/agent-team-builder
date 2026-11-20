@@ -7,7 +7,7 @@ import sys
 
 from . import __version__
 from .installer import export_bundle, skill_source
-from .adapters import PLATFORMS as HOST_PLATFORMS, capabilities, detect_platform
+from .adapters import PLATFORMS as HOST_PLATFORMS, capabilities
 from .marketplace import build_catalog, generate_role, install_role, recommend_roles
 from .recommendation import assessed_request, compact_request, _digest
 from .runtime import (add_memory, analytics, get_task, list_tasks, plan_task,
@@ -27,6 +27,11 @@ def parser():
     sub.add_parser("init", help="初始化或恢复项目团队，保留已有入口")
     sub.add_parser("status", help="验证和查看团队索引")
     sub.add_parser("doctor", help="检查配置和实际可用能力")
+    host_parser = sub.add_parser("host", help="协商当前宿主能力；验收记录不作为以后会话的工具证据")
+    host_sub = host_parser.add_subparsers(dest="action", required=True)
+    host_sub.add_parser("inspect", help="只读查看安装契约、当前会话能力与执行方式")
+    verify = host_sub.add_parser("verify", help="校验并保存宿主实际验收结果，不执行宿主工具")
+    verify.add_argument("receipt", type=Path)
     plan = sub.add_parser("plan", help="依据主 Agent 提供的语义分析生成任务交接")
     plan.add_argument("spec", type=Path)
     task = sub.add_parser("task", help="任务历史与状态")
@@ -139,13 +144,19 @@ def dispatch(args):
         raise ValueError("项目目录不存在: {}".format(start))
     root = discover_root(start)
     host = read_yaml(args.host) if args.host else None
-    platform = detect_platform(root) if args.platform == "auto" else args.platform
+    from .hosts import detect_host, inspect_host, negotiate, record_verification
+    platform = detect_host(root, host=host) if args.platform == "auto" else args.platform
+    negotiate(platform, host)
+    if args.command == "host":
+        if args.action == "inspect":
+            return inspect_host(platform, host, root)
+        return record_verification(root, platform, read_yaml(args.receipt), host)
     if args.command == "init":
         return bootstrap(root, platform)
     if args.command == "plan":
         spec = read_yaml(args.spec)
         # Every plan can be created without loading a role catalog for simple work.
-        return plan_task(root, spec, host=host)
+        return plan_task(root, spec, host=host, platform=platform)
     if args.command in ("status", "doctor"):
         team = validate_team(read_yaml(safe_path(root, ".agent-team/team.yaml")))
         if args.command == "status":

@@ -138,8 +138,8 @@ def validate_team(data):
     if not isinstance(orchestration, dict):
         raise ValueError('orchestration must be a mapping')
     limit = orchestration.get('max_parallel_agents', 3)
-    if type(limit) is not int or not 1 <= limit <= 3:
-        raise ValueError('max_parallel_agents must be 1 through 3')
+    if type(limit) is not int or limit < 1:
+        raise ValueError('max_parallel_agents must be a positive integer')
     thresholds = orchestration.get('thresholds', {})
     if not isinstance(thresholds, dict):
         raise ValueError('thresholds must be a mapping')
@@ -196,7 +196,7 @@ def bootstrap(root, platform='generic'):
         else:
             write_yaml(orchestration_path, team.get('orchestration',
                        {'thresholds': {'assisted': 40, 'multi_agent': 70}, 'max_parallel_agents': 3}))
-        selected = team.get('platform', platform)
+        selected = platform if platform != 'generic' else team.get('platform', platform)
         entry = safe_path(root, entry_path(selected))
         existing = entry.read_text(encoding='utf-8') if entry.exists() else ''
         begin, end = '<!-- agent-team-runtime:begin -->', '<!-- agent-team-runtime:end -->'

@@ -363,6 +363,10 @@ def install_agency_role(root, role_id, tool, scope="project", approved=False, ho
               "status": "available" if native else "unavailable", "native_available": native,
               "skill_available": tool in SKILL_TARGETS,
               "activation": _activation(tool, native_id, targets, scope)}
+    from .hosts import execution_route, inspect_host
+    result["host"] = inspect_host(tool, host)
+    result["delegation"] = execution_route(tool, host, (native_id, role_id, profile["name"]),
+                                            role_instructions=True, kind="skill" if tool in SKILL_TARGETS else "agent")
     if approved is not True:
         result["confirmation"] = {"kind": "role_installation", "role_id": role_id, "name": profile["name"],
                                   "tool": tool, "scope": scope, "target": result["target"],
@@ -426,4 +430,6 @@ def install_agency_role(root, role_id, tool, scope="project", approved=False, ho
                     agency._atomic_bytes(path, data)
             raise
     result.update(installed=True, action="unchanged" if all(e["action"] == "unchanged" for e in entries) else "installed")
+    # Preparing an import ZIP is not the same as installing it in the host.
+    result["host"]["verification"]["files_installed"] = "pending" if tool == "workbuddy" else "passed"
     return result

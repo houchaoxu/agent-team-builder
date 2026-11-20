@@ -305,6 +305,10 @@ def install_role(root, role, platform="generic", approved=False, host=None):
               "path": rendered["path"], "permissions": ["write project role file", "update project team registry"],
               "content": rendered["content"], "approved": approved is True,
               "installed": False, "status": status["status"], "evidence": status["evidence"]}
+    from .hosts import execution_route
+    result["delegation"] = execution_route(platform, host,
+        (role.get("agent_id"), role["id"], role["name"], role.get("role")), role_instructions=True,
+        kind="skill" if platform in ("workbuddy", "trae", "pi") else "agent")
     if "upstream" in role:
         result["upstream"] = role["upstream"]
     if approved is not True:

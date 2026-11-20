@@ -49,6 +49,7 @@ Project installation is the default. Prefer a shared installation? Add **“Inst
 | 🧠 | **A team that persists** | Reuse your project's team in the next session. |
 | 🎯 | **The right amount of help** | Small tasks stay with one agent; complex tasks get focused assistance. |
 | 🤝 | **Clear ownership** | Dependencies and file boundaries keep parallel work coordinated. |
+| 🔌 | **Host-aware collaboration** | Check current tools, choose native, generic, or temporary subagents, and verify installation separately from execution. |
 | 🧩 | **Roles that fit your request** | Your agent's LLM evaluates candidates, presents better-fitting roles for you to choose, and installs after your manual confirmation. |
 | 📚 | **Project memory** | Keep useful decisions and lessons, with sources and revision history. |
 | 📊 | **Honest execution records** | Track real outcomes and available metrics; unknown values stay unknown. |
@@ -92,9 +93,9 @@ The bundled index contains **283 role cards** from a pinned [Agency-Agents](http
 
 **Match → choose a role → preview → confirm → use.** When the host supports interactive questions, candidates appear as clickable choices; otherwise, use a numbered list. Choose a role or skip installation. Profiles are downloaded as needed from a pinned revision, hash-checked, and cached. Your agent shows the source, destination, and write scope, then waits for your explicit confirmation before installing. Selecting a candidate or leaving an option preselected does not approve installation.
 
-**Use the role in your own tool.** Agency-Agents' bundled adapters produce matching role files for supported tools. Agent Team Builder also prepares Skills for Trae and Pi, plus an import package for WorkBuddy. Project installation stays the default where supported; WorkBuddy requires importing the package through its Skills UI. A Skill is not the same as a callable subagent. See the [supported targets and requirements](agent_team/skill/references/agency-installation.md).
+**Use the role in your own tool.** Installation adapters prepare the matching files or import package; current session capabilities determine execution through a native specialist, a generic subagent receiving specialist instructions, a temporary role, or sequential handoffs. Skill installation and subagent invocation are verified separately. An adapter that produces a Skill package does not mean the host lacks native agents. Project installation stays the default where supported. See [host capability negotiation](agent_team/skill/references/host-capabilities.md) and [installation targets](agent_team/skill/references/agency-installation.md).
 
-If the installed role is not yet callable natively, a supported generic subagent can receive its specialist instructions, or the main agent can follow them sequentially, stating who actually executes the work. The library is MIT-licensed upstream material; attribution and pinned provenance travel with the index and profiles. See the [role workflow](agent_team/skill/references/role-matching.md) for details.
+One shared core manages roles, teams, and task records; host adapters handle installation and handoffs. Actual support depends on the current version, tools, and permissions. Past verification never becomes a new session's capability evidence. The library is MIT-licensed upstream material; attribution and pinned provenance travel with the index and profiles. See the [role workflow](agent_team/skill/references/role-matching.md) for details.
 
 ## 📖 Go deeper
 

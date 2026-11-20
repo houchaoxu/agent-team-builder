@@ -9,16 +9,18 @@
 - 官方稳定发行位于 `https://github.com/houchaoxu/agent-team-builder/releases`；可下载 `agent-team-runtime-skill.zip` 与同名 `.sha256`，先验证 SHA-256、固定 `agent-team-runtime/` 根目录及 `.agent-team-install.json`，再安装完整 bundle。源码安装入口仍可用。
 - 用户给的是完整导出 Skill：应包含 SKILL.md、references、scripts/run.py 和 scripts/runtime/agent_team。将完整目录安装到宿主实际支持的位置，不只复制 SKILL.md。
 
-默认范围为当前项目；只有用户明确要求跨项目使用才选 user。Codex 使用 `.agents/skills/agent-team-runtime` / `~/.agents/skills/agent-team-runtime`；Claude Code 使用 `.claude/skills/agent-team-runtime` / `~/.claude/skills/agent-team-runtime`。安装器按当前宿主路由到对应原生 Skill 目录适配器，底层 bundle、manifest 校验和原子写入共用。宿主无法识别时不会猜测 Codex。Trae 使用 `.trae/skills/agent-team-runtime`，项目入口为 `.trae/rules/agent-team-runtime.md`；Pi 使用 `.agents/skills/agent-team-runtime`。WorkBuddy 当前仍准备 Skills UI 导入包。文件安装后仍需核实宿主发现状态；现有同名不同内容不覆盖。升级已安装版本遵循 Skill 的 `references/updates.md`。
+默认范围为当前项目；只有用户明确要求跨项目使用才选 user。Codex 使用 `.agents/skills/agent-team-runtime` / `~/.agents/skills/agent-team-runtime`；Claude Code 使用 `.claude/skills/agent-team-runtime` / `~/.claude/skills/agent-team-runtime`。安装器按当前宿主路由，底层 bundle、manifest 校验和原子写入共用。Trae 使用 `.trae/skills/agent-team-runtime`，项目入口为 `.trae/rules/agent-team-runtime.md`；Pi 使用 `.agents/skills/agent-team-runtime`；WorkBuddy 的文件后端准备 Skills 导入包。这些是安装方式，不代表相应产品的子 Agent 能力上限。现有同名不同内容不覆盖；升级遵循 Skill 的 `references/updates.md`。
+
+安装前由当前 Agent 根据真实会话工具准备 `--host` JSON，按 [宿主能力协商](agent_team/skill/references/host-capabilities.md) 分开核实安装、发现、角色注册和调用能力。`--platform auto` 使用当前会话证据或环境标识，无法识别或证据冲突时停止；项目里存在旧宿主目录不能证明正在使用那个宿主。核实后也可显式传入实际平台，不要求用户编辑配置。
 
 ## 由 Agent 执行
 
 1. 检测已有 Python 3.9+ 或宿主提供的解释器。没有时，先用文件工具复制完整 Skill；仅有源码时按 references/installation.md 的布局组装 bundle，再按 basic-mode.md 启用基础协作。不替用户安装系统软件。
-2. 预览：`<python> <repo>/install.py --project <project> --scope project --platform codex`。
+2. 预览：`<python> <repo>/install.py --project <project> --scope project --platform auto --host <current-host.json>`。
 3. 对已授权的范围执行同命令加 `--approve`。明确项目/个人安装的用户请求已提供相应授权，不额外机械确认；宿主的实际写入权限仍需遵守。
 4. 读取安装后 SKILL.md，Agent 执行 `<python> <skill>/scripts/run.py --check`。若要求准备环境，执行一次 `--setup`，依赖安装到 Skill 私有缓存环境，不影响系统包。
 5. Agent 调 runner 进行 `--project <project> --platform <actual-platform> init` 与 `status`。项目入口保留用户已有内容，使用宿主 Skill 发现或项目相对路径，不保存个人绝对安装目录。
-6. 验证当前宿主是否发现 Skill。无法证明已加载时，准确报告“文件已安装，待宿主加载”；按宿主实际要求引导重新打开会话。
+6. 分别验证文件安装、当前宿主发现、原生角色注册和实际委派。准备团队协作时按能力选择原生角色、通用子 Agent 加载指令、临时角色或顺序执行；有委派能力时用最小只读任务核实真实调用 ID 和返回结果。用 `host verify` 保存实际验收回执，历史回执不替代新会话工具证据。无法证明已加载时，报告“文件已安装，待宿主加载”；按宿主实际要求引导重新打开会话。
 
 更详细的动作边界与基础模式在安装包的 `references/installation.md`、`references/basic-mode.md`。失败时记录准确原因；可完成的项目配置继续完成，不绕过环境权限或无限重试下载。
 

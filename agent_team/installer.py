@@ -176,89 +176,66 @@ def main(argv=None):
     parser.add_argument("--project", type=Path, default=Path.cwd())
     from .platforms import PLATFORMS
     parser.add_argument("--platform", choices=("auto",) + PLATFORMS, default="auto")
+    parser.add_argument("--host", type=Path, help="Current-session host evidence JSON (no runtime dependencies required)")
     parser.add_argument("--approve", action="store_true")
     args = parser.parse_args(argv)
     try:
         from .host_installers import installer_for
+        from .hosts import detect_host, inspect_host
+        host = None
+        if args.host:
+            if args.host.stat().st_size > 1024 * 1024:
+                raise ValueError("Host evidence exceeds 1 MB")
+            host = json.loads(args.host.read_text(encoding="utf-8"))
         platform = args.platform
         if platform == "auto":
-            from .adapters import detect_platform
-            platform = detect_platform(args.project)
+            platform = detect_host(args.project, host=host, require_runtime=True)
             if platform == "generic":
                 raise ValueError("Could not identify the active host. Select the actual host; refusing to assume Codex.")
+        report = inspect_host(platform, host)
         host_installer = installer_for(platform)
-        if host_installer is not None:
-            destination = args.destination or host_installer.destination(args.project, args.scope, Path.home())
-            destination = _no_links(destination)
-            if args.approve:
-                result = host_installer.install(export_bundle, args.project, args.scope, Path.home(), destination)
-                result.update(platform=platform, scope=args.scope,
-                              installed_globally=args.scope == "user",
-                              installer={"id": platform, "mechanism": "native-skill-directory"},
-                              activation={"state": "host_native_discovery", "executed": False,
-                                          "instructions": host_installer.activation})
-                if result["status"] in ("installed", "unchanged"):
-                    manifest_path = destination / MANIFEST_NAME
-                    if manifest_path.is_file():
-                        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                        manifest.update(scope=args.scope, platform=platform)
-                        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True,
-                                                           indent=2) + "\n", encoding="utf-8")
-            else:
-                result = {"status": "preview", "path": str(destination), "files": sorted(_files()),
-                          "writes": [str(destination)], "network": False,
-                          "dependencies": ["Python>=3.9", "optional runtime: PyYAML>=6,<7",
-                                           "Python<3.11: tomli>=2"],
-                          "platform": platform, "scope": args.scope,
-                          "installed_globally": args.scope == "user",
-                          "installer": {"id": platform, "mechanism": "native-skill-directory"},
-                          "activation": {"state": "host_native_discovery", "executed": False,
-                                         "instructions": host_installer.activation},
-                          "next": "Agent may apply existing authorization using --approve"}
-            print(json.dumps(result, ensure_ascii=False, indent=2))
-            return 0
-        directories = {
-            "codex": ".agents/skills/agent-team-runtime",
-            "claude-code": ".claude/skills/agent-team-runtime",
-            "trae": ".trae/skills/agent-team-runtime",
-            "pi": ".agents/skills/agent-team-runtime",
-        }
-        if args.destination is None and platform not in directories and platform != "workbuddy":
-            raise ValueError("This platform requires an explicit --destination")
-        default_destination = ((Path.home() if args.scope == "user" else args.project)
-                               / ".agent-team/exports/agent-team-runtime.zip"
-                               if platform == "workbuddy" else
-                               (Path.home() if args.scope == "user" else args.project) / directories[platform])
-        destination = args.destination or default_destination
+        mechanism = report["adapter"]["skill_installation"]
+        if args.destination is not None:
+            destination = args.destination
+        elif host_installer:
+            destination = host_installer.destination(args.project, args.scope, Path.home())
+        elif platform == "workbuddy":
+            destination = (Path.home() if args.scope == "user" else args.project) / ".agent-team/exports/agent-team-runtime.zip"
+        else:
+            raise ValueError("This platform requires an explicit --destination from its verified discovery contract")
         destination = _no_links(destination)
+        activation = {"state": "host_native_discovery" if host_installer else "host_verification_required",
+                      "executed": False, "instructions": host_installer.activation if host_installer else
+                      "Verify this destination is discovered by the current host before claiming activation."}
+        if platform == "workbuddy":
+            activation = {"state": "manual_import_required", "executed": False,
+                          "instructions": "Import this ZIP through WorkBuddy's Skills UI in the " + args.scope +
+                          " scope, or use a verified host installation tool. Verify discovery. "
+                          "This packaging backend does not determine the host's subagent capability."}
         if args.approve:
-            result = (export_bundle_archive(destination) if platform == "workbuddy"
-                      else export_bundle(destination))
+            if host_installer:
+                result = host_installer.install(export_bundle, args.project, args.scope, Path.home(), destination)
+            else:
+                result = export_bundle_archive(destination) if platform == "workbuddy" else export_bundle(destination)
             if platform == "workbuddy":
-                result.update(status="prepared_for_import", activation={
-                    "state": "manual_import_required", "executed": False,
-                    "instructions": "Import this ZIP in WorkBuddy's Skills UI and select the requested "
-                                    + args.scope + " scope. "
-                                    "The public docs do not specify automatic local project discovery."})
-            elif result["status"] == "installed":
-                result_path = destination / MANIFEST_NAME
-                if result_path.exists():
-                    manifest = json.loads(result_path.read_text(encoding="utf-8"))
-                    manifest.update(scope=args.scope, platform=args.platform)
-                    result_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-                                           encoding="utf-8")
+                result["status"] = "prepared_for_import"
+            elif result["status"] in ("installed", "unchanged"):
+                manifest_path = destination / MANIFEST_NAME
+                if manifest_path.is_file():
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    manifest.update(scope=args.scope, platform=platform)
+                    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+                                             encoding="utf-8")
         else:
             result = {"status": "preview", "path": str(destination), "files": sorted(_files()),
                       "writes": [str(destination)], "network": False,
-                      "dependencies": ["Python>=3.9", "optional runtime: PyYAML>=6,<7",
-                                       "Python<3.11: tomli>=2"],
+                      "dependencies": ["Python>=3.9", "optional runtime: PyYAML>=6,<7", "Python<3.11: tomli>=2"],
                       "next": "Agent may apply existing authorization using --approve"}
-            if platform == "workbuddy":
-                result["activation"] = {"state": "manual_import_required", "executed": False,
-                                        "instructions": "The ZIP will need to be imported through WorkBuddy's Skills UI; "
-                                                        "select Project scope after import."}
-        result.update(scope=args.scope, platform=platform)
-        result["installed_globally"] = args.scope == "user" and platform != "workbuddy"
+        result.update(platform=platform, scope=args.scope,
+                      installed_globally=args.scope == "user" and platform != "workbuddy",
+                      installer={"id": platform, "mechanism": mechanism}, activation=activation, host=report)
+        result["host"]["verification"]["files_installed"] = (
+            "passed" if args.approve and result["status"] in ("installed", "unchanged") else "unknown")
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError) as exc:

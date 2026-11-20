@@ -15,6 +15,8 @@
 
 ## 选择范围与宿主入口
 
+安装前按 [宿主能力协商](host-capabilities.md) 区分当前产品、版本、会话工具与权限，准备本次 `--host` JSON。Skill 安装入口与子 Agent 执行能力分别选择：某个文件适配器只生成 Skill 或导入包，不代表宿主只能顺序执行。不要让用户填写能力配置；由当前 Agent 根据实际可用工具准备，未核实的字段保持未知。
+
 当前项目是默认范围。Codex 项目路径为 `<project>/.agents/skills/agent-team-runtime`，用户范围路径为 `~/.agents/skills/agent-team-runtime`；Claude Code 项目路径为 `<project>/.claude/skills/agent-team-runtime`，用户范围路径为 `~/.claude/skills/agent-team-runtime`。Agent 根据当前宿主选择对应安装适配器；两者共用同一 bundle、manifest 校验与原子写入核心。没有宿主识别证据时不能假设 Codex，先从当前会话确认宿主再显式传入。已有同名 Skill 先核对来源；不同内容不覆盖。用户要求升级时读 [更新与回退](updates.md)，不要用首次安装器强制覆盖。2.5.x 及更早版本须先验证官方旧 bundle、完整备份，再完成一次手动迁移，之后才具备更新提醒。
 
 其他平台按其当前实际支持的 Skill 目录安装；不因平台名臆造自动发现位置。项目入口优先通过宿主发现已安装 Skill；项目内安装可以使用项目相对路径。用户范围安装无法被发现时，说明尚待宿主加载，并按宿主支持的发现流程处理，不将个人绝对安装路径保存到项目入口。源码仓库可使用 `agent_team/skill/SKILL.md`；只有宿主能够读取工作流时才启用完整或基础协作。
@@ -22,11 +24,11 @@
 安装前可预览，已授权范围内由 Agent 完成执行：
 
 ```text
-<python> <repo>/install.py --project <project> --scope project --platform auto
-<python> <repo>/install.py --project <project> --scope project --platform auto --approve
+<python> <repo>/install.py --project <project> --scope project --platform auto --host <current-host.json>
+<python> <repo>/install.py --project <project> --scope project --platform auto --host <current-host.json> --approve
 ```
 
-`auto` 只接受当前宿主环境或项目配置给出的识别结果；无法识别时停止，不回落到 Codex。Claude Code 会路由到 Claude Code 的 `.claude/skills/` 安装适配器，Codex 路由到 `.agents/skills/` 适配器。用户可在已确认宿主时显式指定 `--platform codex` 或 `--platform claude-code`。
+`auto` 使用本次会话平台证据或可验证的当前环境，不依项目中旧宿主目录猜测正在使用哪个工具；无法识别或证据冲突时停止，不回落到 Codex。Claude Code 路由到 `.claude/skills/` 适配器，Codex 路由到 `.agents/skills/` 适配器。Agent 在核实当前宿主后也可显式指定对应 `--platform`。
 
 这些是 Agent 内部操作，不让用户复制执行。`<python>` 由 Agent 检测已有 Python 3.9+ 或宿主提供的解释器；不安装系统 Python、不改 PATH。不具备解释器时走基础模式。
 
@@ -46,7 +48,7 @@
 
 ## 验收与用户回复
 
-检查完整 bundle 文件存在；完整引擎执行 `init`、`status`，确认团队保存且已有入口内容仍保留。按需检查宿主是否发现了 Skill；无法取得发现信号时明确“文件已安装，待宿主加载”，必要时请用户重新打开会话。
+检查完整 bundle 文件存在；完整引擎执行 `init`、`status`，确认团队保存且已有入口内容仍保留。按 [宿主验收](host-capabilities.md#分别验收并保留记录) 分别记录文件安装、宿主发现、角色注册、真实调用与结果返回。验收多 Agent 能力时使用一个最小只读任务取得实际调用 ID 和结果；CLI 规划输出不算调用证明。无法取得发现信号时明确“文件已安装，待宿主加载”，必要时请用户重新打开会话。
 
 这些检查属于首次安装验收或明确的升级/修复，不是每次会话的启动步骤。启用后由轻入口先判断任务，复杂任务才加载 Skill 与已有团队；恢复不调用 `init`。更新旧项目入口时可显式执行一次幂等 `init`，保留已有团队和用户指令；不安装无条件启动钩子。
 

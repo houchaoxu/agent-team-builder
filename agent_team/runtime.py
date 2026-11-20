@@ -88,7 +88,9 @@ def _work_items(root, items):
     return result
 
 
-def plan_task(root, spec, host=None):
+def plan_task(root, spec, host=None, platform=None):
+    if host is not None and not isinstance(host, dict):
+        raise ValueError('host must be a mapping')
     if not isinstance(spec, dict) or not isinstance(spec.get('title'), str) or not spec['title'].strip():
         raise ValueError('Task title is required')
     if not isinstance(spec.get('goal', spec['title']), str):
@@ -99,9 +101,12 @@ def plan_task(root, spec, host=None):
     score = round(sum(scores[key] * weight for key, weight in WEIGHTS.items()), 6)
     criteria = _strings(spec.get('acceptance_criteria', []), 'acceptance_criteria')
     items = _work_items(root, spec.get('work_items', []))
+    from .hosts import execution_route, negotiate
     mode, members, limit, warnings = 'single_agent', [], 1, []
+    active_platform = platform or (host or {}).get('platform')
     if score >= 40:
         config = validate_team(read_yaml(safe_path(root, '.agent-team/team.yaml')))
+        active_platform = active_platform or config.get('platform', 'generic')
         members = config.get('team', {}).get('members', config.get('members', []))
         orchestration = config.get('orchestration', {})
         orchestration_path = safe_path(root, '.agent-team/orchestration.yaml')
@@ -117,8 +122,8 @@ def plan_task(root, spec, host=None):
         if not _number(assisted) or not _number(multi) or not 40 <= assisted < multi <= 100:
             raise ValueError('Thresholds must satisfy 40 <= assisted < multi_agent <= 100')
         limit = orchestration.get('max_parallel_agents', 3)
-        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 3:
-            raise ValueError('max_parallel_agents must be 1 through 3')
+        if type(limit) is not int or limit < 1:
+            raise ValueError('max_parallel_agents must be a positive integer')
         mode = 'multi_agent' if score >= multi else 'assisted' if score >= assisted else 'single_agent'
     agents, eligible, handoffs, gaps, retained = [], [], [], [], []
     for item in items:
@@ -129,7 +134,7 @@ def plan_task(root, spec, host=None):
             # host invocation still requires current capability evidence.
             from .agency_install import installed_user_roles
             try:
-                reused = next(installed_user_roles(config.get('platform', 'generic'), [item['role']]), None)
+                reused = next(installed_user_roles(active_platform, [item['role']]), None)
                 if reused is not None:
                     member = dict(reused, role=reused['name'])
             except (OSError, ValueError) as exc:
@@ -147,7 +152,7 @@ def plan_task(root, spec, host=None):
             from .marketplace import build_catalog, recommend_roles
             from .recommendation import capability_card, compact_request
             try:
-                catalog = build_catalog(root, config.get('platform', 'generic'), host=host)
+                catalog = build_catalog(root, active_platform, host=host)
                 gap['recommendations'] = [capability_card(role) for role in
                                           recommend_roles(catalog, missing or [item['role']], item['deliverables'], limit=3)]
                 gap['semantic_request'] = compact_request(
@@ -161,30 +166,43 @@ def plan_task(root, spec, host=None):
             warnings.append('Capability gap for {}; main agent retains this work item'.format(item['id']))
             continue
         if mode != 'single_agent' and item['deliverables'] and (item['write_scope'] or item.get('read_only') is True):
-            platform = config.get('platform', 'generic')
             agent_kinds = member.get('agent_kinds', {})
-            agent_kind = agent_kinds.get(platform) if isinstance(agent_kinds, dict) else None
+            agent_kind = agent_kinds.get(active_platform) if isinstance(agent_kinds, dict) else None
             # Older Agent Team Builder installs did not record the distinction
             # between a generated Skill and a callable host agent. Recognize
             # those records by their managed Agency provenance and target.
-            if (agent_kind is None and platform in ('trae', 'pi', 'workbuddy')
-                    and platform in member.get('platforms', []) and member.get('upstream')):
+            if (agent_kind is None and active_platform in ('trae', 'pi', 'workbuddy')
+                    and active_platform in member.get('platforms', []) and member.get('upstream')):
                 agent_kind = 'skill'
             eligible.append(item)
             agents.append({'work_item_id': item['id'], 'role': item['role'], 'member_id': member['id'],
-                           'agent_id': member.get('agent_ids', {}).get(config.get('platform'),
+                           'agent_id': member.get('agent_ids', {}).get(active_platform,
                                                                     member.get('agent_id', member['id'])),
                            'agent_kind': agent_kind or 'agent'})
             instructions = member.get('prompt', '')
             if member.get('definition'):
                 instructions = safe_path(root, member['definition']).read_text(encoding='utf-8')
+            aliases = (agents[-1]['agent_id'], member['id'], member.get('name'), member['role'])
+            # Another host's registered ID is not invocation evidence for this host.
+            if active_platform not in member.get('platforms', [active_platform]):
+                aliases = (member.get('agent_ids', {}).get(active_platform),)
+            route = execution_route(active_platform, host, aliases,
+                                    role_instructions=bool(str(instructions).strip()), kind=agent_kind or 'agent')
+            current_cap = negotiate(active_platform, host)
+            if current_cap['shared_workspace'] is False:
+                route.update(mode='sequential_handoff', agent_id=None,
+                             reason='Host workspaces are isolated; prepare and verify project transfer and result integration before delegation')
+                warnings.append('Work item {} needs an isolated workspace transfer contract; worktree support alone does not prepare a workspace'.format(item['id']))
+            agents[-1].update(configured_agent_id=agents[-1]['agent_id'], agent_id=route['agent_id'],
+                              execution_mode=route['mode'])
             handoffs.append({'work_item_id': item['id'], 'prompt':
                 'Goal: {}\nDeliverables: {}\nWrite only: {}\nDependencies: {}\nAcceptance: {}\n'
                 'Read access: project files needed for this assignment; do not access unrelated private files.\n'
-                'You share the workspace. Preserve other changes. Return changed paths, actual validation and risks. '
+                'Use the host-assigned project workspace; confirm project files are accessible before working. '
+                'Preserve other changes. Return changed paths, actual validation and risks. '
                 'Do not claim execution without evidence.'.format(item['goal'], ', '.join(item['deliverables']),
                 ', '.join(item['write_scope']) or 'none (read-only)', ', '.join(item['depends_on']) or 'none', '; '.join(criteria))
-                + '\nRole instructions:\n' + str(instructions)})
+                + '\nRole instructions:\n' + str(instructions), 'transport': route})
         elif mode != 'single_agent':
             warnings.append('Work item {} lacks deliverables or an independent write boundary; main agent retains it'.format(item['id']))
             retained.append(item['id'])
@@ -201,40 +219,31 @@ def plan_task(root, spec, host=None):
         if scores['parallel_benefit'] <= 0 or scores['independence'] <= 0 or not independent_ready:
             mode = 'assisted'
             warnings.append('Parallel execution requires positive independence and parallel benefit plus two independently ready delegated items')
-    host = host if isinstance(host, dict) else {}
-    native = host.get('native_subagents') is True and isinstance(host.get('evidence'), str) and bool(host['evidence'].strip())
-    available = host.get('available_agents', [])
-    if not isinstance(available, list):
-        raise ValueError('available_agents must be a list')
-    host_limit = host.get('max_parallel_agents', limit)
-    if not isinstance(host_limit, int) or isinstance(host_limit, bool) or host_limit < 1:
-        raise ValueError('Host max_parallel_agents must be a positive integer')
-    limit = min(limit, host_limit, 3)
-    # Resolve the exact host identifier that will actually be passed to spawn.
-    for agent in agents:
-        agent['configured_agent_id'] = agent['agent_id']
-        if agent['agent_kind'] == 'skill':
-            # A Skill can supply role instructions for a handoff, but its name
-            # appearing in the host inventory does not make it callable.
-            agent['agent_id'] = None
-        else:
-            matched = next((identifier for identifier in
-                            (agent['agent_id'], agent['member_id'], agent['role'])
-                            if identifier in available), None)
-            agent['agent_id'] = matched if native else agent['agent_id']
-    callable_agents = native and all(a['agent_id'] is not None for a in agents)
-    strategy = 'single_agent' if mode == 'single_agent' or not eligible else 'native_subagents' if callable_agents else 'sequential_handoffs'
-    if mode != 'single_agent' and not callable_agents:
-        warnings.append('Native agent capability is unverified or roles unavailable; use explicit handoffs')
-    if mode == 'assisted' or strategy != 'native_subagents':
+    active_platform = active_platform or 'generic'
+    cap = negotiate(active_platform, host)
+    limit = min(limit, cap['max_parallel_agents'] or 1)
+    delegated = [a for a in agents if a['execution_mode'] != 'sequential_handoff']
+    all_delegated = bool(agents) and len(delegated) == len(agents)
+    if mode == 'single_agent' or not eligible:
+        strategy = 'single_agent'
+    elif all_delegated:
+        strategy = 'native_subagents' if all(a['execution_mode'] == 'native_role' for a in agents) else 'host_subagents'
+    else:
+        strategy = 'mixed_handoffs' if delegated else 'sequential_handoffs'
+        warnings.append('Some role transports are unverified; execute those explicit handoffs sequentially')
+    if mode == 'assisted' or not all_delegated or retained:
         limit = 1
+    writers = {item['id'] for item in items if item['write_scope']}
+    if writers and cap['parallel_writes'] is not True:
+        limit = 1
+        warnings.append('Parallel writes are not verified for this session; serializing write work')
     batches, done, pending = [], set(), list(items)
     while pending:
         ready = [item for item in pending if set(item['depends_on']) <= done][:limit]
         batches.append([item['id'] for item in ready])
         done.update(item['id'] for item in ready)
         pending = [item for item in pending if item['id'] not in done]
-    if mode == 'multi_agent' and strategy == 'native_subagents':
+    if mode == 'multi_agent' and all_delegated:
         eligible_ids = {item['id'] for item in eligible}
         if not any(sum(identifier in eligible_ids for identifier in batch) >= 2 for batch in batches):
             mode = 'assisted'
@@ -246,6 +255,8 @@ def plan_task(root, spec, host=None):
                        'acceptance_criteria': criteria, 'created_at': now, 'updated_at': now},
               'execution': {'mode': mode, 'strategy': strategy, 'agents': agents, 'work_items': items,
                             'batches': batches, 'handoffs': handoffs, 'warnings': warnings,
+                            'platform': active_platform, 'host': cap, 'max_parallel_agents': limit,
+                            'execution_verified': False,
                             'capability_gaps': gaps, 'retained_by_main': retained},
               'metrics': dict(METRICS), 'result': {'summary': '', 'evidence': None}}
     with project_lock(root):
