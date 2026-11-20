@@ -19,7 +19,7 @@ Small tasks stay with one agent. Bigger tasks bring in specialists, with a team 
 
 ---
 
-Agent Team Builder gives your development agent a reusable project team: choose specialists for the task, coordinate their work, and keep useful decisions for future sessions.
+Agent Team Builder aims to make specialist teamwork available through conversation: install it in your development agent, describe your goal, and reuse the right team across sessions.
 
 ## 💬 Get started
 
@@ -28,11 +28,13 @@ Open your project in a development agent with file and command tools, then send:
 ```text
 Install the latest stable Agent Team Builder for this project from
 https://github.com/houchaoxu/agent-team-builder.
-Follow INSTALL.md, handle environment setup,
-and verify the installation and host loading status.
+Follow INSTALL.md, identify this host and its current tools,
+choose the matching installation method, and verify what is ready to use.
 ```
 
-Your agent installs the complete Skill, prepares its internal tools, and enables the project entry point. **You don't need to run Python, pip, or CLI commands yourself.**
+Your agent checks the current environment, installs the complete Skill through the matching adapter, and prepares the project entry point. If the host needs an import or reload step, your agent explains what remains. **You don't need to run Python, pip, or CLI commands yourself.**
+
+For the capability negotiation described below, ask to install from the repository's `main` branch. The latest stable release is currently **v2.7.1** and does not include these changes yet.
 
 Then ask for what you want to build:
 
@@ -87,15 +89,28 @@ The lightweight project entry keeps the workflow small:
 
 Automatic routing depends on the host loading the entry. There is no unconditional startup hook or independent scheduling service.
 
+### One workflow, adapted to your agent
+
+**One conversation to start. Installation and execution adapt to the current host.** Codex, Claude Code, WorkBuddy, Trae, Pi, and other tools can expose different capabilities—even between versions or sessions. Your agent checks the tools it actually has before choosing how to work.
+
+| What is available now | How the team works |
+| --- | --- |
+| A callable specialist | Delegate to that native role. |
+| A generic subagent that accepts instructions | Give it the selected specialist's role and task. |
+| A tool that can create temporary agents | Create a specialist for this task. |
+| No usable delegation path | Follow the role instructions sequentially and explain the limitation. |
+
+A shared core handles role retrieval, teams, and task records. Host adapters handle packaging and installation; current session evidence selects the execution path. **Installing a Skill does not prove that a specialist is registered or callable.** Discovery, registration, invocation, and returned results are checked separately; unknown capabilities stay unknown. Actual native integration still needs verification in the host version you use.
+
+Project teams persist across sessions and tools, while callable agents and permissions are checked when needed. Simple tasks skip these checks. [Learn how host adaptation works →](agent_team/skill/references/host-capabilities.md)
+
 ### A fallback library, loaded as needed
 
 The bundled index contains **283 role cards** from a pinned [Agency-Agents](https://github.com/msitarzewski/agency-agents) revision and is the only default fallback library. Your agent checks project-team roles and Agent Team Builder managed installations for the current host first. When a capability is missing, local BM25/keyword retrieval and English/Chinese scenario aliases select **up to six capability cards by default**; your host LLM judges their meaning and fit. Personal agent directories such as `~/.codex/agents` and `~/.claude/agents` are not scanned by default; local imports require an explicit source. No extra model API, vector database, or repository clone is required. An empty retrieval result may need broader terms or another page; it does not prove a suitable role is absent.
 
 **Match → choose a role → preview → confirm → use.** When the host supports interactive questions, candidates appear as clickable choices; otherwise, use a numbered list. Choose a role or skip installation. Profiles are downloaded as needed from a pinned revision, hash-checked, and cached. Your agent shows the source, destination, and write scope, then waits for your explicit confirmation before installing. Selecting a candidate or leaving an option preselected does not approve installation.
 
-**Use the role in your own tool.** Installation adapters prepare the matching files or import package; current session capabilities determine execution through a native specialist, a generic subagent receiving specialist instructions, a temporary role, or sequential handoffs. Skill installation and subagent invocation are verified separately. An adapter that produces a Skill package does not mean the host lacks native agents. Project installation stays the default where supported. See [host capability negotiation](agent_team/skill/references/host-capabilities.md) and [installation targets](agent_team/skill/references/agency-installation.md).
-
-One shared core manages roles, teams, and task records; host adapters handle installation and handoffs. Actual support depends on the current version, tools, and permissions. Past verification never becomes a new session's capability evidence. The library is MIT-licensed upstream material; attribution and pinned provenance travel with the index and profiles. See the [role workflow](agent_team/skill/references/role-matching.md) for details.
+**The same roles, adapted to your tool.** A selected Agency profile supplies the specialist instructions; the current host determines its installation format and execution path. Project installation is the default where supported. See [installation targets](agent_team/skill/references/agency-installation.md) and the [role workflow](agent_team/skill/references/role-matching.md). Upstream MIT attribution and pinned provenance travel with the index and profiles.
 
 ## 📖 Go deeper
 
