@@ -15,16 +15,18 @@
 
 ## 选择范围与宿主入口
 
-当前项目是默认范围。Codex 项目路径为 `<project>/.agents/skills/agent-team-runtime`，用户明确要求所有项目可用时为 `~/.agents/skills/agent-team-runtime`。已有同名 Skill 先核对来源；不同内容不覆盖。用户要求升级时读 [更新与回退](updates.md)，不要用首次安装器强制覆盖。2.5.x 及更早版本须先验证官方旧 bundle、完整备份，再完成一次手动迁移，之后才具备更新提醒。
+当前项目是默认范围。Codex 项目路径为 `<project>/.agents/skills/agent-team-runtime`，用户范围路径为 `~/.agents/skills/agent-team-runtime`；Claude Code 项目路径为 `<project>/.claude/skills/agent-team-runtime`，用户范围路径为 `~/.claude/skills/agent-team-runtime`。Agent 根据当前宿主选择对应安装适配器；两者共用同一 bundle、manifest 校验与原子写入核心。没有宿主识别证据时不能假设 Codex，先从当前会话确认宿主再显式传入。已有同名 Skill 先核对来源；不同内容不覆盖。用户要求升级时读 [更新与回退](updates.md)，不要用首次安装器强制覆盖。2.5.x 及更早版本须先验证官方旧 bundle、完整备份，再完成一次手动迁移，之后才具备更新提醒。
 
 其他平台按其当前实际支持的 Skill 目录安装；不因平台名臆造自动发现位置。项目入口优先通过宿主发现已安装 Skill；项目内安装可以使用项目相对路径。用户范围安装无法被发现时，说明尚待宿主加载，并按宿主支持的发现流程处理，不将个人绝对安装路径保存到项目入口。源码仓库可使用 `agent_team/skill/SKILL.md`；只有宿主能够读取工作流时才启用完整或基础协作。
 
 安装前可预览，已授权范围内由 Agent 完成执行：
 
 ```text
-<python> <repo>/install.py --project <project> --scope project --platform codex
-<python> <repo>/install.py --project <project> --scope project --platform codex --approve
+<python> <repo>/install.py --project <project> --scope project --platform auto
+<python> <repo>/install.py --project <project> --scope project --platform auto --approve
 ```
+
+`auto` 只接受当前宿主环境或项目配置给出的识别结果；无法识别时停止，不回落到 Codex。Claude Code 会路由到 Claude Code 的 `.claude/skills/` 安装适配器，Codex 路由到 `.agents/skills/` 适配器。用户可在已确认宿主时显式指定 `--platform codex` 或 `--platform claude-code`。
 
 这些是 Agent 内部操作，不让用户复制执行。`<python>` 由 Agent 检测已有 Python 3.9+ 或宿主提供的解释器；不安装系统 Python、不改 PATH。不具备解释器时走基础模式。
 

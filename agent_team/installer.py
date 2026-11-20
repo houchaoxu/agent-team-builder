@@ -175,28 +175,66 @@ def main(argv=None):
     parser.add_argument("--scope", choices=("project", "user"), default="project")
     parser.add_argument("--project", type=Path, default=Path.cwd())
     from .platforms import PLATFORMS
-    parser.add_argument("--platform", choices=PLATFORMS, default="codex")
+    parser.add_argument("--platform", choices=("auto",) + PLATFORMS, default="auto")
     parser.add_argument("--approve", action="store_true")
     args = parser.parse_args(argv)
     try:
+        from .host_installers import installer_for
+        platform = args.platform
+        if platform == "auto":
+            from .adapters import detect_platform
+            platform = detect_platform(args.project)
+            if platform == "generic":
+                raise ValueError("Could not identify the active host. Select the actual host; refusing to assume Codex.")
+        host_installer = installer_for(platform)
+        if host_installer is not None:
+            destination = args.destination or host_installer.destination(args.project, args.scope, Path.home())
+            destination = _no_links(destination)
+            if args.approve:
+                result = host_installer.install(export_bundle, args.project, args.scope, Path.home(), destination)
+                result.update(platform=platform, scope=args.scope,
+                              installed_globally=args.scope == "user",
+                              installer={"id": platform, "mechanism": "native-skill-directory"},
+                              activation={"state": "host_native_discovery", "executed": False,
+                                          "instructions": host_installer.activation})
+                if result["status"] in ("installed", "unchanged"):
+                    manifest_path = destination / MANIFEST_NAME
+                    if manifest_path.is_file():
+                        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                        manifest.update(scope=args.scope, platform=platform)
+                        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True,
+                                                           indent=2) + "\n", encoding="utf-8")
+            else:
+                result = {"status": "preview", "path": str(destination), "files": sorted(_files()),
+                          "writes": [str(destination)], "network": False,
+                          "dependencies": ["Python>=3.9", "optional runtime: PyYAML>=6,<7",
+                                           "Python<3.11: tomli>=2"],
+                          "platform": platform, "scope": args.scope,
+                          "installed_globally": args.scope == "user",
+                          "installer": {"id": platform, "mechanism": "native-skill-directory"},
+                          "activation": {"state": "host_native_discovery", "executed": False,
+                                         "instructions": host_installer.activation},
+                          "next": "Agent may apply existing authorization using --approve"}
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
         directories = {
             "codex": ".agents/skills/agent-team-runtime",
             "claude-code": ".claude/skills/agent-team-runtime",
             "trae": ".trae/skills/agent-team-runtime",
             "pi": ".agents/skills/agent-team-runtime",
         }
-        if args.destination is None and args.platform not in directories and args.platform != "workbuddy":
+        if args.destination is None and platform not in directories and platform != "workbuddy":
             raise ValueError("This platform requires an explicit --destination")
         default_destination = ((Path.home() if args.scope == "user" else args.project)
                                / ".agent-team/exports/agent-team-runtime.zip"
-                               if args.platform == "workbuddy" else
-                               (Path.home() if args.scope == "user" else args.project) / directories[args.platform])
+                               if platform == "workbuddy" else
+                               (Path.home() if args.scope == "user" else args.project) / directories[platform])
         destination = args.destination or default_destination
         destination = _no_links(destination)
         if args.approve:
-            result = (export_bundle_archive(destination) if args.platform == "workbuddy"
+            result = (export_bundle_archive(destination) if platform == "workbuddy"
                       else export_bundle(destination))
-            if args.platform == "workbuddy":
+            if platform == "workbuddy":
                 result.update(status="prepared_for_import", activation={
                     "state": "manual_import_required", "executed": False,
                     "instructions": "Import this ZIP in WorkBuddy's Skills UI and select the requested "
@@ -215,12 +253,12 @@ def main(argv=None):
                       "dependencies": ["Python>=3.9", "optional runtime: PyYAML>=6,<7",
                                        "Python<3.11: tomli>=2"],
                       "next": "Agent may apply existing authorization using --approve"}
-            if args.platform == "workbuddy":
+            if platform == "workbuddy":
                 result["activation"] = {"state": "manual_import_required", "executed": False,
                                         "instructions": "The ZIP will need to be imported through WorkBuddy's Skills UI; "
                                                         "select Project scope after import."}
-        result.update(scope=args.scope, platform=args.platform)
-        result["installed_globally"] = args.scope == "user" and args.platform != "workbuddy"
+        result.update(scope=args.scope, platform=platform)
+        result["installed_globally"] = args.scope == "user" and platform != "workbuddy"
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError) as exc:

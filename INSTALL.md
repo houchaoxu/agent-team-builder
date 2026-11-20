@@ -9,7 +9,7 @@
 - 官方稳定发行位于 `https://github.com/houchaoxu/agent-team-builder/releases`；可下载 `agent-team-runtime-skill.zip` 与同名 `.sha256`，先验证 SHA-256、固定 `agent-team-runtime/` 根目录及 `.agent-team-install.json`，再安装完整 bundle。源码安装入口仍可用。
 - 用户给的是完整导出 Skill：应包含 SKILL.md、references、scripts/run.py 和 scripts/runtime/agent_team。将完整目录安装到宿主实际支持的位置，不只复制 SKILL.md。
 
-默认范围为当前项目；只有用户明确要求跨项目使用才选 user。Codex 项目路径 `.agents/skills/agent-team-runtime`，个人路径 `~/.agents/skills/agent-team-runtime`。Claude Code 使用 `.claude/skills/agent-team-runtime`；Trae 使用 `.trae/skills/agent-team-runtime`，项目入口为 `.trae/rules/agent-team-runtime.md`；Pi 使用标准 `.agents/skills/agent-team-runtime`。Trae 可能需在设置启用项目 Skills，Pi 当前会话已扫描后需 `/reload` 或重开。WorkBuddy 的公开文档支持 Skills UI 导入 ZIP，但未承诺固定本地项目发现目录；本安装器生成导入包，需由用户在 Skills UI 导入并选择作用域。导入/文件存在不证明宿主已加载。现有同名不同内容不覆盖。升级已安装版本遵循 Skill 的 `references/updates.md`；2.5.x 及更早安装没有更新模块和 manifest，必须由 Agent 验证官方旧 bundle 未修改、完整备份并手动迁移一次，之后才可收到按需更新提醒。
+默认范围为当前项目；只有用户明确要求跨项目使用才选 user。Codex 使用 `.agents/skills/agent-team-runtime` / `~/.agents/skills/agent-team-runtime`；Claude Code 使用 `.claude/skills/agent-team-runtime` / `~/.claude/skills/agent-team-runtime`。安装器按当前宿主路由到对应原生 Skill 目录适配器，底层 bundle、manifest 校验和原子写入共用。宿主无法识别时不会猜测 Codex。Trae 使用 `.trae/skills/agent-team-runtime`，项目入口为 `.trae/rules/agent-team-runtime.md`；Pi 使用 `.agents/skills/agent-team-runtime`。WorkBuddy 当前仍准备 Skills UI 导入包。文件安装后仍需核实宿主发现状态；现有同名不同内容不覆盖。升级已安装版本遵循 Skill 的 `references/updates.md`。
 
 ## 由 Agent 执行
 

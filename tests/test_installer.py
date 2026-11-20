@@ -71,7 +71,7 @@ class InstallerTests(unittest.TestCase):
 
     def test_preview_needs_neither_dependencies_nor_writes(self):
         result = subprocess.run([sys.executable, "-S", str(REPO / "install.py"),
-                                 "--destination", str(self.destination)],
+                                 "--destination", str(self.destination), "--platform", "codex"],
                                 cwd=str(self.root), capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "preview")
@@ -80,7 +80,7 @@ class InstallerTests(unittest.TestCase):
     def test_default_project_and_explicit_non_codex_destination(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            self.assertEqual(main(["--project", str(self.root)]), 0)
+            self.assertEqual(main(["--project", str(self.root), "--platform", "codex"]), 0)
         self.assertEqual(json.loads(out.getvalue())["path"],
                          str(self.root / ".agents/skills/agent-team-runtime"))
         out = io.StringIO()
@@ -89,6 +89,42 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(json.loads(out.getvalue())["path"],
                          str(self.root / ".claude/skills/agent-team-runtime"))
         self.assertFalse((self.root / ".agents").exists())
+
+    def test_auto_selects_codex_or_claude_native_installer(self):
+        for platform, marker, relative in (
+                ("codex", "CODEX_THREAD_ID", ".agents/skills/agent-team-runtime"),
+                ("claude-code", "CLAUDE_CODE_ENTRYPOINT", ".claude/skills/agent-team-runtime")):
+            destination = self.root / platform
+            output = io.StringIO()
+            with patch.dict(os.environ, {marker: "active"}, clear=True), \
+                    patch("agent_team.installer._files", return_value={"SKILL.md": b"fixture"}), \
+                    contextlib.redirect_stdout(output):
+                self.assertEqual(main(["--project", str(destination)]), 0)
+            preview = json.loads(output.getvalue())
+            self.assertEqual(preview["platform"], platform)
+            self.assertEqual(preview["installer"], {"id": platform, "mechanism": "native-skill-directory"})
+            self.assertEqual(preview["path"], str(destination / relative))
+            self.assertFalse((destination / relative).exists())
+
+    def test_auto_does_not_guess_codex_when_host_is_unknown(self):
+        with patch.dict(os.environ, {"AGENT_TEAM_PLATFORM": "generic"}, clear=True):
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(["--project", str(self.root)]), 2)
+        self.assertFalse((self.root / ".agents").exists())
+
+    def test_native_adapter_installs_shared_bundle_and_records_host(self):
+        output = io.StringIO()
+        with patch.dict(os.environ, {"CLAUDE_CODE_ENTRYPOINT": "active"}, clear=True), \
+                patch("agent_team.host_installers.SkillDirectoryInstaller.install",
+                      return_value={"status": "installed", "path": str(self.root / ".claude/skills/agent-team-runtime"),
+                                    "files": ["SKILL.md"]}), \
+                contextlib.redirect_stdout(output):
+            self.assertEqual(main(["--project", str(self.root), "--approve"]), 0)
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["status"], "installed")
+        self.assertEqual(result["platform"], "claude-code")
+        self.assertEqual(result["installer"]["id"], "claude-code")
+        self.assertEqual(result["activation"]["state"], "host_native_discovery")
 
     def test_host_specific_skill_paths_and_workbuddy_import_archive(self):
         trae = json.loads(subprocess.run([sys.executable, str(REPO / "install.py"),
