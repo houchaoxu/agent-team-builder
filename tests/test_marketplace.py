@@ -297,7 +297,7 @@ def test_catalog_rejects_project_team_directory_escaping_symlink(tmp_path):
         build_catalog(project, sources=[])
 
 
-def test_catalog_rejects_implicit_role_directory_escaping_symlink(tmp_path):
+def test_catalog_ignores_implicit_host_role_directory_symlink(tmp_path):
     project, external = tmp_path / "project", tmp_path / "external"
     project.mkdir()
     external.mkdir()
@@ -305,8 +305,7 @@ def test_catalog_rejects_implicit_role_directory_escaping_symlink(tmp_path):
     (project / ".codex/agents").symlink_to(external, target_is_directory=True)
     (external / "external-reviewer.md").write_text(
         "---\nname: External Reviewer\ncapabilities: [review]\n---\nExternal instructions.")
-    with pytest.raises(ValueError, match="Path escapes project"):
-        build_catalog(project, "codex", [])
+    assert not any(role["id"] == "external-reviewer" for role in build_catalog(project, "codex", []))
     # An explicitly selected source may intentionally point outside the project.
     catalog = build_catalog(project, "generic", [project / ".codex/agents"])
     entry = next(item for item in catalog if item["id"] == "external-reviewer")

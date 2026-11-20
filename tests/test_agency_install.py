@@ -450,7 +450,7 @@ def test_changed_native_artifact_invalidates_user_role_record(library, monkeypat
 @pytest.mark.parametrize("tool,relative", [("opencode", ".config/opencode/agents"),
                                           ("qwen", ".qwen/agents"), ("zcode", ".zcode/agents"),
                                           ("copilot", ".github/agents"), ("copilot", ".copilot/agents")])
-def test_extra_native_user_directories_are_only_scanned_for_current_host(library, tool, relative):
+def test_extra_native_user_directories_require_explicit_source(library, tool, relative):
     directory = library["home"] / relative
     directory.mkdir(parents=True)
     (directory / "custom-extra.md").write_text(
@@ -458,8 +458,9 @@ def test_extra_native_user_directories_are_only_scanned_for_current_host(library
     root = library["project"]
     for platform in ("generic", "codex"):
         assert not any(role["id"] == "custom-extra" for role in build_catalog(root, platform))
-    role = next(role for role in build_catalog(root, tool) if role["id"] == "custom-extra")
-    assert role["source_platform"] == tool and role["installed_for_platform"]
+    assert not any(role["id"] == "custom-extra" for role in build_catalog(root, tool))
+    role = next(role for role in build_catalog(root, tool, sources=[directory]) if role["id"] == "custom-extra")
+    assert role["source"] == "local" and role["installation_required"]
     assert not role["native_available"]
 
 

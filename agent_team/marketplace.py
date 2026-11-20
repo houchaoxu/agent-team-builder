@@ -207,25 +207,17 @@ def build_catalog(root, platform="generic", sources=None, host=None):
                     except (ValueError, OSError, UnicodeError, yaml.YAMLError) as exc:
                         warnings.warn("Skipping invalid role definition %s: %s" % (path, exc), RuntimeWarning)
             add(role, "project")
-    for role in _scan(safe_path(root, _ROLE_DIRS[platform]), "project", project_root=root):
-        if role.get("source_path") not in managed_paths:
-            add(role, "project")
+    # The bundled Agency-Agents index is the single default role library.
+    # Native role directories are intentionally not scanned implicitly: doing
+    # so makes a Codex session ingest unrelated Claude/Cursor/Gemini material
+    # and turns another host's private roles into recommendations. Local role
+    # discovery remains available through an explicit --source argument.
     if sources is None:
         from .agency_install import installed_user_roles
         for role in installed_user_roles(platform):
             managed_paths.update(role.pop("managed_paths"))
             add(role, "installed")
-        # Prefer the current host's definition when IDs overlap across hosts.
-        source_dirs = [{"path": Path.home() / _ROLE_DIRS[owner], "kind": "local", "platform": owner}
-                       for owner in sorted(("codex", "claude-code", "cursor", "gemini-cli"),
-                                           key=lambda owner: owner != platform)]
-        # Extra simple native formats are scanned only for the current host.
-        # Multi-file formats are recovered through verified managed records.
-        extra_user_dirs = {"opencode": (".config/opencode/agents",), "qwen": (".qwen/agents",),
-                           "trae": (".trae/skills",), "pi": (".agents/skills",),
-                           "zcode": (".zcode/agents",), "copilot": (".github/agents", ".copilot/agents")}
-        source_dirs[:0] = [{"path": Path.home() / path, "kind": "local", "platform": platform}
-                          for path in extra_user_dirs.get(platform, ())]
+        source_dirs = []
     else:
         if isinstance(sources, (str, Path)):
             sources = [sources]

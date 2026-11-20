@@ -114,7 +114,7 @@ agent-team --project /project --platform kimi role install --agency AGENCY_ROLE_
 agent-team --project /project --platform generic role install --agency AGENCY_ROLE_ID --installer builtin
 ```
 
-2.5.0 的对话流程先评估现有已安装角色，不足时再查后备素材库。`role catalog` 保留完整目录发现用途；`role recommend --query` 默认评估现有角色，排除内置 proposed 草案。`--library agency` 显式切换到内置 [Agency-Agents](https://github.com/msitarzewski/agency-agents) 索引。`--source` 仍支持已有本地目录，支持角色 Markdown/frontmatter 和 Codex TOML；不要求用户 clone 仓库。无合适素材时，`role generate` 可生成可编辑的确定性初稿，再由主 Agent 完善。
+对话流程先评估当前项目团队和由 Agent Team Builder 管理的当前宿主安装角色，不足时再查询后备素材库。默认发现不会扫描 `~/.codex/agents`、`~/.claude/agents` 等宿主个人目录；角色库默认来源收敛为内置固定版本的 [Agency-Agents](https://github.com/msitarzewski/agency-agents) 索引。`role recommend --query` 默认评估现有项目角色，排除内置 proposed 草案；使用 `--library agency` 检索 Agency 候选。只有用户明确选择本地导入时才传 `--source`，仍支持角色 Markdown/frontmatter 和 Codex TOML；不要求用户 clone 素材仓库。无合适素材时，`role generate` 可生成可编辑的确定性初稿，再由主 Agent 完善。
 
 **本地召回 + 宿主 LLM 语义判断**：`--query` 用关键词和中英文场景别名在本地筛选能力卡，默认 `--limit 6`、`--offset 0`；limit 范围为 1..20。能力卡不包含完整 prompt。宿主可重复传入 `--term 'English capability'` 补充含义，或通过 offset 翻页；最多进行两次扩大检索，仍无合适结果时如实说明范围与缺口。零召回不代表语义上不存在角色。此流程没有 embedding、向量库、新模型服务或 API Key 依赖。
 
@@ -135,7 +135,7 @@ agent-team --project /project --platform generic role install --agency AGENCY_RO
 
 平台兼容但尚未验证的角色仍可作为顺序 Prompt 候选，推荐结果会说明需先验证。能力缺口会记录在任务计划的 `capability_gaps` 中，并保留给主 Agent，不会凭空创建可执行 Agent。
 
-目录同时返回 `installed_for_platform`、`installation_required`、`native_available`。当前宿主的个人目录角色算已安装；其他宿主目录只作为本地可导入素材，`source_platform` 标明来源，不会因同名而排除 Agency 后备候选。导入时将 `role show ID` 返回的规范化 JSON 保存为临时 profile，再执行 `role install <profile.json>`；原始 Markdown/TOML 不直接传给安装接口，来源文件保持原样。
+目录同时返回 `installed_for_platform`、`installation_required`、`native_available`。默认角色发现只读项目注册角色和本工具经 Agent Team Builder 管理的安装记录，不扫描各宿主的个人 agent 目录。用户明确选择从本地导入时，以 `--source <目录>` 显式指定素材来源；导入时将 `role show ID --source <目录>` 返回的规范化 JSON 保存为临时 profile，再执行 `role install <profile.json>`。原始 Markdown/TOML 不直接传给安装接口，来源文件保持原样。
 
 语义评估结果额外返回 `selection`：最多 3 个候选及跳过选项，包含角色 ID、名称、推荐理由、来源、是否需安装及原生可调用状态；空匹配时为 null。宿主用实际可用的交互问答工具渲染可点击选择，不支持时显示编号列表。评估缓存只复用匹配，不保存用户安装同意。
 

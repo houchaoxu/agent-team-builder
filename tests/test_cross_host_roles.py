@@ -1,4 +1,4 @@
-"""Other hosts' personal roles are importable material, not installed members."""
+"""Role discovery is Agency-first; local host material requires explicit opt-in."""
 import json
 from pathlib import Path
 
@@ -29,7 +29,7 @@ def invoke(root, capsys, *args):
 
 
 @pytest.mark.parametrize('platform', ['codex', 'claude-code', 'cursor', 'gemini-cli', 'generic'])
-def test_other_host_material_remains_installable(tmp_path, monkeypatch, platform):
+def test_other_host_material_is_ignored_without_explicit_source(tmp_path, monkeypatch, platform):
     home, root = tmp_path / 'home', tmp_path / 'project'
     root.mkdir()
     monkeypatch.setattr(Path, 'home', lambda: home)
@@ -37,38 +37,36 @@ def test_other_host_material_remains_installable(tmp_path, monkeypatch, platform
     profile = generate_role('ui-designer', 'UI Designer', ['ui design'])
     original = write_personal(home, profile, origin)
     source = original.read_bytes()
-    role = next(item for item in build_catalog(root, platform) if item['id'] == profile['id'])
+    assert not any(item['id'] == profile['id'] for item in build_catalog(root, platform))
+    role = next(item for item in build_catalog(root, platform, sources=[original.parent])
+                if item['id'] == profile['id'])
     assert role['status'] == 'installable'
-    assert role['source_platform'] == origin
+    assert role['source'] == 'local'
     assert role['installation_required'] and not role['installed_for_platform']
     assert not role['native_available']
     request = compact_request([role], 'UI design')
     card = request['candidates'][0]
-    assert card['installation_required'] and card['source_platform'] == origin
+    assert card['installation_required']
     result = apply_assessment([role], request, {'request_id': request['request_id'], 'matches': [
         {'id': role['id'], 'relevance': .9, 'reason': 'UI expertise fits this task.',
          'evidence': [{'field': 'name', 'quote': role['name']}]}]})
     option = result['selection']['options'][0]
-    assert option['action'] == 'preview_install' and option['source_platform'] == origin
+    assert option['action'] == 'preview_install'
     assert original.read_bytes() == source and not list(root.iterdir())
 
 
 @pytest.mark.parametrize('platform,other', [('codex', 'claude-code'), ('claude-code', 'codex')])
-def test_current_host_definition_wins_over_duplicate_other_host(tmp_path, monkeypatch, platform, other):
+def test_default_catalog_does_not_merge_duplicate_host_directories(tmp_path, monkeypatch, platform, other):
     home, root = tmp_path / 'home', tmp_path / 'project'
     root.mkdir()
     monkeypatch.setattr(Path, 'home', lambda: home)
     role = generate_role('ui-designer', 'UI Designer', ['ui design'])
     write_personal(home, dict(role, prompt='Other host instructions'), other)
     write_personal(home, dict(role, prompt='Current host instructions'), platform)
-    chosen = next(item for item in build_catalog(root, platform) if item['id'] == role['id'])
-    assert chosen['prompt'] == 'Current host instructions'
-    assert chosen['source_platform'] == platform
-    assert chosen['status'] == 'unavailable' and not chosen['native_available']
-    assert chosen['installed_for_platform'] and not chosen['installation_required']
+    assert not any(item['id'] == role['id'] for item in build_catalog(root, platform))
 
 
-def test_other_host_names_do_not_hide_agency_candidates(tmp_path, monkeypatch, capsys):
+def test_local_host_names_do_not_hide_agency_candidates(tmp_path, monkeypatch, capsys):
     home, root = tmp_path / 'home', tmp_path / 'project'
     root.mkdir()
     monkeypatch.setattr(Path, 'home', lambda: home)
@@ -77,10 +75,10 @@ def test_other_host_names_do_not_hide_agency_candidates(tmp_path, monkeypatch, c
     flags = ['role', 'recommend', '--query', 'UI Designer', '--library', 'agency']
     result = invoke(root, capsys, *flags)
     assert 'agency-design-ui-designer' in {card['id'] for card in result['candidates']}
-    # A definition installed for the target host is still deduplicated.
+    # Native files are not implicit Agency installations, even on the target host.
     write_personal(home, profile, 'codex')
     result = invoke(root, capsys, *flags)
-    assert 'agency-design-ui-designer' not in {card['id'] for card in result['candidates']}
+    assert 'agency-design-ui-designer' in {card['id'] for card in result['candidates']}
 
 
 def test_import_preview_confirm_and_reuse_preserve_other_host(tmp_path, monkeypatch, capsys):
@@ -91,7 +89,7 @@ def test_import_preview_confirm_and_reuse_preserve_other_host(tmp_path, monkeypa
     role = generate_role('design-ui-designer', 'UI Designer', ['ui design'])
     original = write_personal(home, role, 'claude-code')
     source = original.read_bytes()
-    shown = invoke(root, capsys, 'role', 'show', role['id'])
+    shown = invoke(root, capsys, 'role', 'show', role['id'], '--source', str(original.parent))
     profile = tmp_path / 'import.json'
     profile.write_text(json.dumps(shown), encoding='utf-8')
     team = (root / '.agent-team/team.yaml').read_bytes()

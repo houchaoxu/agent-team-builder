@@ -52,7 +52,7 @@ def test_skill_host_entry_and_role_use_official_project_directories(tmp_path, pl
     skill_path = tmp_path / rendered['path']
     skill_path.parent.mkdir(parents=True)
     skill_path.write_text(rendered['content'], encoding='utf-8')
-    installed = next(role for role in build_catalog(tmp_path, platform, sources=[])
+    installed = next(role for role in build_catalog(tmp_path, platform, sources=[tmp_path / skill_dir])
                      if role['id'] == 'ui-designer')
     assert installed['capabilities'] == profile['capabilities']
     assert installed['deliverables'] == profile['deliverables']
