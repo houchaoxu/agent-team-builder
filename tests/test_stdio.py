@@ -32,7 +32,7 @@ def test_unicode_recommendation_json_on_legacy_output_stream(tmp_path):
 
 def test_installer_unicode_destination_on_legacy_output_stream(tmp_path):
     destination = tmp_path / '中文技能'
-    args = ['--destination', str(destination)]
+    args = ['--platform', 'codex', '--destination', str(destination)]
     result = run_script('from agent_team.installer import main\nraise SystemExit(main(' + repr(args) + '))')
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)['path'] == str(destination.resolve())
@@ -50,7 +50,7 @@ def unavailable(*args):
     raise OSError('中文错误')
 module.export_bundle=unavailable
 main=module.main
-args=['--destination', %r, '--approve']
+args=['--platform', 'codex', '--destination', %r, '--approve']
 ''' % str(tmp_path / '中文技能')
     else:
         path = ROOT / 'agent_team/skill/scripts/run.py'
@@ -82,7 +82,7 @@ def test_surrogate_filesystem_errors_remain_json(entry, tmp_path):
         code += "module.dispatch=unavailable\nargs=['--project', %r, 'status']\n" % str(tmp_path)
     elif entry == 'installer':
         code = 'import agent_team.installer as module\n' + failure
-        code += "module.export_bundle=unavailable\nargs=['--destination', %r, '--approve']\n" % str(tmp_path / 'skill')
+        code += "module.export_bundle=unavailable\nargs=['--platform', 'codex', '--destination', %r, '--approve']\n" % str(tmp_path / 'skill')
     else:
         code = '''
 import importlib.util
