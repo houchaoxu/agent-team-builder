@@ -34,7 +34,7 @@ choose the matching installation method, and verify what is ready to use.
 
 Your agent checks the current environment, installs the complete Skill through the matching adapter, and prepares the project entry point. If the host needs an import or reload step, your agent explains what remains. **You don't need to run Python, pip, or CLI commands yourself.**
 
-For the capability negotiation described below, ask to install from the repository's `main` branch. The latest stable release is currently **v2.7.1** and does not include these changes yet.
+The latest stable release, **v2.8.0**, includes capability negotiation and host-aware collaboration routing described below.
 
 Then ask for what you want to build:
 

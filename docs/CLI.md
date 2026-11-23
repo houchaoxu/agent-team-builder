@@ -200,7 +200,7 @@ agent-team --project /project doctor
 本地构建仅需标准库，不依赖 PyYAML：
 
 ```sh
-python3 scripts/build_release.py --tag v2.7.1 --output-dir /tmp/agent-team-release
+python3 scripts/build_release.py --tag v2.8.0 --output-dir /tmp/agent-team-release
 ```
 
 输出 `agent-team-runtime-skill.zip` 与 `agent-team-runtime-skill.zip.sha256`（sha256sum 格式）。ZIP 根固定为 `agent-team-runtime/`；内容由 `installer.export_bundle` 生成，排除缓存，并带 `.agent-team-install.json`。manifest 包含 `schema_version: 1`、固定 `repository: houchaoxu/agent-team-builder`、`version` 和 `{相对路径: SHA-256}` 的 `files`。checksum 用于下载完整性验证；来源仍须固定为官方 Release。
