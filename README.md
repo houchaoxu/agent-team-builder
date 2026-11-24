@@ -50,11 +50,13 @@ Project installation is the default. Prefer a shared installation? Add **“Inst
 | --- | --- | --- |
 | 🧠 | **A team that persists** | Reuse your project's team in the next session. |
 | 🎯 | **The right amount of help** | Small tasks stay with one agent; complex tasks get focused assistance. |
+| 💸 | **Cost-aware by default** | Smart mode stays solo unless collaboration helps; preview added agents before delegation. |
 | 🤝 | **Clear ownership** | Dependencies and file boundaries keep parallel work coordinated. |
 | 🔌 | **Host-aware collaboration** | Check current tools, choose native, generic, or temporary subagents, and verify installation separately from execution. |
 | 🧩 | **Roles that fit your request** | Your agent's LLM evaluates candidates, presents better-fitting roles for you to choose, and installs after your manual confirmation. |
 | 📚 | **Project memory** | Keep useful decisions and lessons, with sources and revision history. |
 | 📊 | **Honest execution records** | Track real outcomes and available metrics; unknown values stay unknown. |
+| 🧪 | **Host verification matrix** | See saved installation and invocation checks, with unknown stages left visible. |
 
 ### A conversation, not a control panel
 
@@ -70,6 +72,10 @@ These are usage examples. Actual delegation depends on the tools and permissions
 ## 🛠️ How it works
 
 **Talk → choose the smallest useful team → execute → verify → remember.**
+
+The default is **smart mode**: simple work stays with the primary agent and does not scan roles or load the full team. Choose **solo mode** to avoid subagent calls, or request **team mode** when specialists can help. Before delegation, the plan shows the planned call count and asks for authorization when needed. Exact token and cost estimates remain unknown. These cost controls are available on `main`; the v2.8.0 stable bundle predates them.
+
+Say **“Use only the current agent for this task”**, **“Choose the smallest useful team”**, or **“Use a team for this task”**. Records compare reported tokens, elapsed time, calls, and rework across solo and subagent tasks; missing measurements remain unknown, and comparisons do not claim savings.
 
 The Skill is the user-facing workflow. An optional Python engine handles configuration checks, dependency-aware plans, role installation, and persistent records. The host agent performs the actual model calls and tool work.
 
@@ -102,7 +108,7 @@ Automatic routing depends on the host loading the entry. There is no uncondition
 
 A shared core handles role retrieval, teams, and task records. Host adapters handle packaging and installation; current session evidence selects the execution path. **Installing a Skill does not prove that a specialist is registered or callable.** Discovery, registration, invocation, and returned results are checked separately; unknown capabilities stay unknown. Actual native integration still needs verification in the host version you use.
 
-Project teams persist across sessions and tools, while callable agents and permissions are checked when needed. Simple tasks skip these checks. [Learn how host adaptation works →](agent_team/skill/references/host-capabilities.md)
+Project teams persist across sessions and tools, while callable agents and permissions are checked when needed. New projects default to at most two parallel subagents; existing explicit limits are preserved. Simple tasks skip these checks. [Learn how host adaptation works →](agent_team/skill/references/host-capabilities.md)
 
 ### A fallback library, loaded as needed
 
@@ -116,6 +122,7 @@ The bundled index contains **283 role cards** from a pinned [Agency-Agents](http
 
 - [Installation contract](INSTALL.md) — instructions your agent follows.
 - [CLI and engine reference](docs/CLI.md) — for developers and troubleshooting.
+- [Host validation](docs/HOST_VALIDATION.md) — recorded evidence and a reproducible acceptance checklist.
 - [Skill workflow](agent_team/skill/SKILL.md) — orchestration and progressive loading.
 - [Examples](examples/) — task and host input formats for agent tooling.
 

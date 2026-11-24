@@ -137,7 +137,7 @@ def validate_team(data):
     orchestration = data.get('orchestration', {})
     if not isinstance(orchestration, dict):
         raise ValueError('orchestration must be a mapping')
-    limit = orchestration.get('max_parallel_agents', 3)
+    limit = orchestration.get('max_parallel_agents', 2)
     if type(limit) is not int or limit < 1:
         raise ValueError('max_parallel_agents must be a positive integer')
     thresholds = orchestration.get('thresholds', {})
@@ -181,7 +181,7 @@ def bootstrap(root, platform='generic'):
             team = {'schema_version': '1.0', 'platform': platform,
                     'project': {'id': str(uuid.uuid4()), 'name': root.name, 'root': '.', 'stack': sorted(set(stack))},
                     'settings': {},
-                    'orchestration': {'thresholds': {'assisted': 40, 'multi_agent': 70}, 'max_parallel_agents': 3},
+                    'orchestration': {'thresholds': {'assisted': 40, 'multi_agent': 70}, 'max_parallel_agents': 2},
                     'team': {'id': str(uuid.uuid4()), 'name': root.name + ' team', 'status': 'active',
                     'members': [{'id': 'implementer', 'name': 'Implementation Engineer',
                                  'role': 'Implementation Engineer', 'capabilities': ['implementation'],
@@ -195,7 +195,7 @@ def bootstrap(root, platform='generic'):
             validate_team(dict(team, orchestration=orchestration))
         else:
             write_yaml(orchestration_path, team.get('orchestration',
-                       {'thresholds': {'assisted': 40, 'multi_agent': 70}, 'max_parallel_agents': 3}))
+                       {'thresholds': {'assisted': 40, 'multi_agent': 70}, 'max_parallel_agents': 2}))
         selected = platform if platform != 'generic' else team.get('platform', platform)
         entry = safe_path(root, entry_path(selected))
         existing = entry.read_text(encoding='utf-8') if entry.exists() else ''

@@ -1,0 +1,8 @@
+# Host-reported measurements for one task; unknown values stay null.
+# subagent_calls: 0 only when the host observed no subagent calls.
+tokens: null
+cost: null
+duration_seconds: null
+subagent_calls: null
+tool_calls: null
+rework_rounds: null

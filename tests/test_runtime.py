@@ -64,6 +64,38 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(record['execution']['agents'], [])
         self.assertTrue(all(v is None for v in record['metrics'].values()))
 
+    def test_solo_mode_skips_team_configuration_even_for_complex_scores(self):
+        spec = self.spec(95, [self.item('a', 'src/a'), self.item('b', 'src/b')])
+        spec['collaboration_mode'] = 'solo'
+        with patch('agent_team.runtime.read_yaml', side_effect=AssertionError('unexpected team read')):
+            record = plan_task(self.root, spec)
+        self.assertEqual(record['execution']['mode'], 'single_agent')
+        self.assertEqual(record['execution']['requested_mode'], 'solo')
+        self.assertEqual(record['execution']['cost_estimate']['impact'], 'none')
+        self.assertFalse(record['execution']['cost_estimate']['requires_user_confirmation'])
+
+    def test_team_mode_explicitly_enables_collaboration_and_returns_cost_preview(self):
+        items = [self.item('a', 'src/a'), self.item('b', 'src/b')]
+        spec = self.spec(10, items)
+        spec['collaboration_mode'] = 'team'
+        host = {'native_subagents': True, 'evidence': 'active API inventory',
+                'available_agents': ['implementer'], 'max_parallel_agents': 2,
+                'parallel_writes': True}
+        record = plan_task(self.root, spec, host)
+        self.assertEqual(record['execution']['requested_mode'], 'team')
+        self.assertEqual(record['execution']['mode'], 'multi_agent')
+        self.assertEqual(record['execution']['cost_estimate']['additional_agents'], 2)
+        self.assertEqual(record['execution']['cost_estimate']['impact'], 'moderate')
+        self.assertTrue(record['execution']['cost_estimate']['requires_user_confirmation'])
+        self.assertIsNone(record['execution']['cost_estimate']['token_estimate'])
+
+    def test_cost_preview_counts_only_verified_delegation_routes(self):
+        record = plan_task(self.root, self.spec(80, [self.item('a', 'src/a')]))
+        estimate = record['execution']['cost_estimate']
+        self.assertEqual(estimate['additional_agents'], 0)
+        self.assertEqual(estimate['impact'], 'none')
+        self.assertFalse(estimate['requires_user_confirmation'])
+
     def test_complex_tasks_load_only_selected_roles_without_marketplace(self):
         member = self.team['team']['members'][0]
         member['definition'] = '.agent-team/members/implementer.md'
@@ -206,6 +238,46 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(analytics(self.root)['metrics']['tokens'], 42)
         plan_task(self.root, self.spec(10))
         self.assertIsNone(analytics(self.root)['metrics']['tokens'])
+        modes = analytics(self.root)['mode_comparison']
+        self.assertEqual({item['mode'] for item in modes}, {'single_agent', 'with_subagents', 'unmeasured'})
+        self.assertTrue(all('metric_coverage' in item for item in modes))
+
+    def test_delegation_requires_recorded_authorization_before_running(self):
+        host = {'native_subagents': True, 'evidence': 'active API inventory',
+                'available_agents': ['implementer'], 'max_parallel_agents': 2, 'parallel_writes': True}
+        record = plan_task(self.root, self.spec(80, [self.item('a', 'src/a')]), host)
+        identifier = record['task']['id']
+        with self.assertRaisesRegex(ValueError, 'authorization'):
+            update_task(self.root, identifier, 'running')
+        self.assertEqual(get_task(self.root, identifier)['task']['status'], 'planned')
+        with self.assertRaisesRegex(ValueError, 'authorization'):
+            update_task(self.root, identifier, 'completed', 'verified', evidence='test passed')
+        running = update_task(self.root, identifier, 'running', approve_delegation=True)
+        self.assertEqual(running['execution']['delegation_approval']['status'], 'approved')
+        update_task(self.root, identifier, 'completed', 'verified', evidence='test passed')
+
+    def test_analytics_uses_measured_calls_instead_of_planned_agents(self):
+        solo = plan_task(self.root, self.spec(10))['task']['id']
+        team = plan_task(self.root, self.spec(10))['task']['id']
+        plan_task(self.root, self.spec(10))
+        update_task(self.root, solo, 'completed', 'pass', evidence='passed',
+                    metrics={'subagent_calls': 0, 'tokens': 100, 'rework_rounds': 1})
+        update_task(self.root, team, 'completed', 'pass', evidence='passed',
+                    metrics={'subagent_calls': 2, 'tokens': 250})
+        groups = {group['mode']: group for group in analytics(self.root)['mode_comparison']}
+        self.assertEqual(groups['single_agent']['metrics']['tokens'], 100)
+        self.assertEqual(groups['with_subagents']['metrics']['tokens'], 250)
+        self.assertEqual(groups['unmeasured']['task_count'], 1)
+        self.assertIsNone(groups['unmeasured']['metrics']['tokens'])
+
+    def test_invalid_mode_and_call_counts_are_rejected(self):
+        for mode in ('unknown', '', [], False):
+            with self.assertRaises(ValueError):
+                plan_task(self.root, self.spec(10), collaboration_mode=mode)
+        identifier = plan_task(self.root, self.spec(10))['task']['id']
+        for value in (True, 1.5, -1):
+            with self.assertRaises(ValueError):
+                update_task(self.root, identifier, 'running', metrics={'subagent_calls': value})
 
     def test_memory_sources_approval_and_deduplication(self):
         first = add_memory(self.root, 'experience', 'Useful fact', 'task:one')

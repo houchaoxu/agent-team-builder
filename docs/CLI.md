@@ -79,6 +79,10 @@ result_tool: 当前实际结果工具
 max_parallel_agents: 3
 ```
 
+spec 可设置 `collaboration_mode: solo|smart|team`，也可通过 `plan <spec> --mode` 覆盖本次选择。默认 `smart` 按协作收益判断；`solo` 即使任务复杂也跳过团队与角色读取；`team` 进入协作规划，仍受依赖、文件边界与宿主能力限制。新项目默认最多并发 2 个子 Agent，保留旧项目显式上限。
+
+计划的 `execution.cost_estimate` 给出预计子 Agent 调用数量；顺序 handoff 不计入。`impact` 按调用数划分 none/low/moderate，仅提示新增调用开销，实际 Token 和金额仍未知。`token_estimate` 保持 `null`，不承诺成本节约。有委派的计划须先展示预览，再按当前任务授权执行 `task update TASK_ID running --approve-delegation`；该参数只记录已经获得的授权，不会启动 Agent。
+
 通过 `--host /tmp/host.yaml plan /tmp/spec.yaml` 生成可供宿主执行的 handoffs 和 batches。优先选择当前明确可用的原生角色；没有对应角色时，按已证明的能力使用通用子 Agent 加载角色指令或临时专业角色，再降级为顺序交接。`execution.agents` 分别保留专业角色 `member_id`、实际执行者 `agent_id` 和 `execution_mode`；不把通用执行者称为已注册的同名专家。当前明确指定的平台优先于团队创建时的平台。
 
 主 Agent 使用真实 spawn/delegate 工具执行交接，等待实际结果、处理失败并验收。CLI 记录状态，未内嵌宿主私有 RPC，也不启动伪 Agent 进程。`running` 是用户/宿主报告的状态，不能证明有后台进程。
@@ -93,6 +97,8 @@ evidence 必须是非空映射，记录实际测试、产物、结果和未验�
 
 ## 宿主能力协商与验收
 
+`analytics.mode_comparison` 按实际报告的 `subagent_calls` 分为单 Agent、使用子 Agent 和未测三组，展示完成数、指标和覆盖率。可通过 `task update --metrics` 保存 `tokens`、`cost`、`duration_seconds`、`subagent_calls`、`tool_calls` 和 `rework_rounds`；缺测保持 `null`，后三项为非负整数。组间任务难度可能不同，这些观察值不能证明某个模式更省或更好，也不会触发额外基准调用。
+
 安装或修复适配时，主 Agent 根据当前工具列表、真实角色及权限准备本次 `--host` 文件。新格式使用 `schema_version: 1`，要求真实 `platform`、`session_id` 和 `evidence`；未提供证据的能力保持未知，旧格式仍兼容。平台名称、文件格式和历史成功记录都不证明本次会话可调用性。
 
 ```sh
@@ -102,7 +108,7 @@ agent-team --project /project --platform workbuddy --host /tmp/current-host.json
 
 `host inspect` 返回 `adapter` 安装契约、`capabilities` 当前能力、`registration` 当前注册工具、`execution` 可用运输方式和独立的 `verification` 阶段。没有具体角色输入时不会判定某个原生专家可用；具体角色的 `native_role`、`generic_subagent`、`dynamic_subagent` 或 `sequential_handoff` 路由在 `plan` 的 `handoffs[].transport` 中给出。通用执行需要 `accepts_role_instructions: true`，且 `generic_agent_id` 必须在真实 `available_agents` 中；临时执行还须提供 `dynamic_agents: true` 和真实 `delegation_tool`。这些方式都要求当前 `native_subagents` 证据；通用和临时执行还必须有已加载的非空角色正文。
 
-`host verify` 校验由宿主实际观察生成的回执，不负责创建角色或执行烟测。回执的 schema、平台、session_id 必须与本次证据一致，`checks` 可分别记录 `files_installed`、`skill_discovered`、`role_registered`、`agent_invoked`、`result_received`，状态为 passed/failed/pending。非 pending 项要求实际 evidence；调用和返回成功需有真实 `agent_id`，结果必须对应同一回执中的成功调用。记录保存在 `.agent-team/hosts/<platform>.json`，以后通过 `last_verification` 独立展示，不升级新会话能力。
+`host verify` 校验由宿主实际观察生成的回执，不负责创建角色或执行烟测。回执的 schema、平台、session_id 必须与本次证据一致，`checks` 可分别记录 `files_installed`、`skill_discovered`、`role_registered`、`agent_invoked`、`result_received`，状态为 passed/failed/pending。非 pending 项要求实际 evidence；调用和返回成功需有真实 `agent_id`，结果必须对应同一回执中的成功调用。记录保存在 `.agent-team/hosts/<platform>.json`，以后通过 `last_verification` 独立展示，不升级新会话能力。`host matrix` 汇总最近保存的回执；缺少回执或阶段显示 `unknown`，不代表不支持，也不证明当前会话已具备该能力。
 
 安装后在授权范围内执行一次最小只读调用，实际取得调用 ID 与返回结果，再记录已验证的阶段；无法验证则报告待加载、待注册或实际执行限制。普通简单任务不运行能力扫描或验收；复杂任务只复核即将使用的工具。字段说明及宿主版本边界见 [宿主能力协商](../agent_team/skill/references/host-capabilities.md)。
 

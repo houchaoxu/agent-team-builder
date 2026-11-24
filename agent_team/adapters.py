@@ -62,7 +62,7 @@ def entry_text(platform):
     }.get(platform, ".agents/skills/agent-team-runtime/SKILL.md")
     text = ("<!-- agent-team-runtime:begin -->\n"
             "At each new session or task, assess collaboration value from the request and available context; users need not mention Agent Team Builder.\n"
-            "Default to one agent. Handle simple tasks directly, without loading the full team configuration or Skill.\n"
+            "Default to one agent; honor a user's solo preference even for complex work. Handle simple tasks directly, without loading the full team configuration or Skill.\n"
             "Do not run setup, init, status, doctor, or role scans merely because a session started.\n"
             "For complex tasks with clear collaboration value, use the installed agent-team-runtime Skill and read its SKILL.md for the workflow contract.\n"
             "Reuse the existing .agent-team/team.yaml team across sessions; do not recreate it or run init to resume.\n"

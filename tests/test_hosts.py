@@ -11,7 +11,7 @@ import pytest
 
 from agent_team.cli import main
 from agent_team.hosts import (adapter_contract, detect_host, execution_route, inspect_host,
-                              negotiate, record_verification)
+                              negotiate, record_verification, verification_matrix)
 from agent_team.platforms import PLATFORMS
 from agent_team.runtime import plan_task
 from agent_team.storage import bootstrap, read_yaml, write_yaml
@@ -197,6 +197,30 @@ def test_verification_is_separate_from_current_session_capabilities(tmp_path):
     assert restarted["capabilities"]["native_subagents"] is None
     assert restarted["verification"]["agent_invoked"] == "unknown"
     assert restarted["execution"]["mode"] == "sequential_handoff"
+
+
+def test_verification_matrix_shows_saved_receipts_and_unknowns(tmp_path):
+    record_verification(tmp_path, "workbuddy", receipt(), observation())
+    matrix = verification_matrix(tmp_path)
+    assert matrix["verification_scope"].startswith("latest saved host receipts")
+    workbuddy = next(row for row in matrix["platforms"] if row["platform"] == "workbuddy")
+    codex = next(row for row in matrix["platforms"] if row["platform"] == "codex")
+    assert workbuddy["checks"]["files_installed"] == "passed"
+    assert workbuddy["checks"]["agent_invoked"] == "passed"
+    assert workbuddy["host_version"] == "test-version"
+    assert codex["checks"]["agent_invoked"] == "unknown"
+    assert codex["source"] == "no_receipt"
+
+
+def test_matrix_keeps_invalid_saved_checks_for_explicit_repair(tmp_path):
+    directory = tmp_path / '.agent-team/hosts'
+    directory.mkdir(parents=True)
+    path = directory / 'codex.json'
+    original = json.dumps({'schema_version': 1, 'platform': 'codex', 'checks': []})
+    path.write_text(original, encoding='utf-8')
+    with pytest.raises(ValueError, match='preserve'):
+        verification_matrix(tmp_path)
+    assert path.read_text(encoding='utf-8') == original
 
 
 @pytest.mark.parametrize("failure", ["session", "result_id", "no_invocation", "no_evidence"])

@@ -9,8 +9,10 @@ from .storage import (_strings, project_lock, read_yaml, safe_path,
 
 WEIGHTS = {'independence': .30, 'complexity': .25, 'specialization': .25, 'parallel_benefit': .20}
 STATUSES = {'planned', 'running', 'completed', 'failed', 'cancelled'}
-METRICS = {'tokens': None, 'cost': None, 'duration_seconds': None}
+METRICS = {'tokens': None, 'cost': None, 'duration_seconds': None,
+           'subagent_calls': None, 'tool_calls': None, 'rework_rounds': None}
 MEMORY_CATEGORIES = ('project-context', 'architecture', 'decisions', 'experience')
+COLLABORATION_MODES = ('solo', 'smart', 'team')
 
 
 def _now():
@@ -88,7 +90,7 @@ def _work_items(root, items):
     return result
 
 
-def plan_task(root, spec, host=None, platform=None):
+def plan_task(root, spec, host=None, platform=None, collaboration_mode=None):
     if host is not None and not isinstance(host, dict):
         raise ValueError('host must be a mapping')
     if not isinstance(spec, dict) or not isinstance(spec.get('title'), str) or not spec['title'].strip():
@@ -101,10 +103,15 @@ def plan_task(root, spec, host=None, platform=None):
     score = round(sum(scores[key] * weight for key, weight in WEIGHTS.items()), 6)
     criteria = _strings(spec.get('acceptance_criteria', []), 'acceptance_criteria')
     items = _work_items(root, spec.get('work_items', []))
+    requested_mode = spec.get('collaboration_mode', 'smart') if collaboration_mode is None else collaboration_mode
+    if requested_mode not in COLLABORATION_MODES:
+        raise ValueError('collaboration_mode must be one of: ' + ', '.join(COLLABORATION_MODES))
     from .hosts import execution_route, negotiate
     mode, members, limit, warnings = 'single_agent', [], 1, []
+    if requested_mode == 'solo':
+        warnings.append('Solo mode selected; team configuration and role discovery are skipped')
     active_platform = platform or (host or {}).get('platform')
-    if score >= 40:
+    if requested_mode != 'solo' and (score >= 40 or requested_mode == 'team'):
         config = validate_team(read_yaml(safe_path(root, '.agent-team/team.yaml')))
         active_platform = active_platform or config.get('platform', 'generic')
         members = config.get('team', {}).get('members', config.get('members', []))
@@ -121,10 +128,14 @@ def plan_task(root, spec, host=None, platform=None):
         assisted, multi = thresholds.get('assisted', 40), thresholds.get('multi_agent', 70)
         if not _number(assisted) or not _number(multi) or not 40 <= assisted < multi <= 100:
             raise ValueError('Thresholds must satisfy 40 <= assisted < multi_agent <= 100')
-        limit = orchestration.get('max_parallel_agents', 3)
+        limit = orchestration.get('max_parallel_agents', 2)
         if type(limit) is not int or limit < 1:
             raise ValueError('max_parallel_agents must be a positive integer')
-        mode = 'multi_agent' if score >= multi else 'assisted' if score >= assisted else 'single_agent'
+        if requested_mode == 'team':
+            mode = 'multi_agent'
+            warnings.append('Team mode selected; collaboration is enabled for this plan when work boundaries allow it')
+        else:
+            mode = 'multi_agent' if score >= multi else 'assisted' if score >= assisted else 'single_agent'
     agents, eligible, handoffs, gaps, retained = [], [], [], [], []
     for item in items:
         member = next((m for m in members if item['role'] in (m['id'], m['role'])), None)
@@ -250,10 +261,30 @@ def plan_task(root, spec, host=None, platform=None):
             batches = [[identifier] for batch in batches for identifier in batch]
             warnings.append('Effective concurrency permits no parallel delegated batch; using assisted execution')
     identifier, now = str(uuid.uuid4()), _now()
+    delegated_agents = [agent for agent in agents if agent['execution_mode'] != 'sequential_handoff']
+    delegated_count = len(delegated_agents)
+    if delegated_count == 0:
+        cost_impact = 'none'
+    elif delegated_count == 1:
+        cost_impact = 'low'
+    else:
+        cost_impact = 'moderate'
+    cost_estimate = {
+        'additional_agents': delegated_count,
+        'token_estimate': None,
+        'token_estimate_reason': 'No reliable pre-execution token estimate was supplied',
+        'impact': cost_impact,
+        'impact_basis': 'Agent call count only; not a token or monetary estimate',
+        'requires_user_confirmation': delegated_count > 0,
+        'context_policy': 'task_scope_and_selected_role_only',
+    }
     record = {'task': {'id': identifier, 'title': spec['title'], 'goal': spec.get('goal', spec['title']),
                        'scores': dict(scores), 'score': score, 'status': 'planned',
                        'acceptance_criteria': criteria, 'created_at': now, 'updated_at': now},
-              'execution': {'mode': mode, 'strategy': strategy, 'agents': agents, 'work_items': items,
+              'execution': {'mode': mode, 'requested_mode': requested_mode, 'strategy': strategy, 'agents': agents,
+                            'cost_estimate': cost_estimate,
+                            'delegation_approval': {'status': 'pending' if delegated_count else 'not_required'},
+                            'work_items': items,
                             'batches': batches, 'handoffs': handoffs, 'warnings': warnings,
                             'platform': active_platform, 'host': cap, 'max_parallel_agents': limit,
                             'execution_verified': False,
@@ -279,7 +310,7 @@ def list_tasks(root):
     return [get_task(root, path.stem) for path in sorted(directory.glob('*.yaml'))]
 
 
-def update_task(root, task_id, status, summary='', metrics=None, evidence=None):
+def update_task(root, task_id, status, summary='', metrics=None, evidence=None, approve_delegation=False):
     if status not in STATUSES:
         raise ValueError('Unknown task status')
     if not isinstance(summary, str):
@@ -290,11 +321,23 @@ def update_task(root, task_id, status, summary='', metrics=None, evidence=None):
         raise ValueError('Completion requires summary and actual acceptance evidence')
     if metrics is not None and (not isinstance(metrics, dict) or any(v is not None and (not _number(v) or v < 0) for v in metrics.values())):
         raise ValueError('Metrics must be nonnegative finite numbers or null')
+    for key in ('subagent_calls', 'tool_calls', 'rework_rounds'):
+        value = (metrics or {}).get(key)
+        if value is not None and type(value) is not int:
+            raise ValueError(key + ' must be a nonnegative integer or null')
+    if type(approve_delegation) is not bool:
+        raise ValueError('approve_delegation must be a boolean')
     with project_lock(root):
         record = get_task(root, task_id)
         previous = record['task']['status']
         if previous in ('completed', 'failed', 'cancelled') and status != previous:
             raise ValueError('Terminal task cannot change status')
+        approval = record['execution'].get('delegation_approval', {})
+        if approval.get('status') == 'pending':
+            if approve_delegation:
+                record['execution']['delegation_approval'] = {'status': 'approved', 'recorded_at': _now()}
+            elif status in ('running', 'completed'):
+                raise ValueError('Delegation cost preview requires task authorization; use --approve-delegation only after user approval')
         record['task'].update(status=status, updated_at=_now())
         record['result'] = {'summary': summary, 'evidence': evidence}
         if metrics is not None:
@@ -408,7 +451,21 @@ def analytics(root):
                                           'summary': r.get('result', {}).get('summary', ''),
                                           'evidence': r.get('result', {}).get('evidence')} for r in group],
                              'metrics': group_totals, 'metric_coverage': group_coverage})
+    mode_comparison = []
+    for mode in ('single_agent', 'with_subagents', 'unmeasured'):
+        group = []
+        for record in records:
+            calls = record.get('metrics', {}).get('subagent_calls')
+            measured_mode = 'unmeasured' if calls is None else 'with_subagents' if calls > 0 else 'single_agent'
+            if measured_mode == mode:
+                group.append(record)
+        mode_metrics, mode_coverage = _metric_summary(group)
+        mode_comparison.append({'mode': mode, 'task_count': len(group),
+                                'completed_tasks': sum(r['task']['status'] == 'completed' for r in group),
+                                'metrics': mode_metrics, 'metric_coverage': mode_coverage})
     return {'total_tasks': len(records), 'statuses': statuses, 'metrics': totals,
             'metric_coverage': coverage, 'role_combinations': combinations,
+            'mode_comparison': mode_comparison,
+            'comparison_basis': 'Host-reported subagent_calls; observational groups, not matched benchmarks or savings claims',
             'modes': {mode: sum(r['execution']['mode'] == mode for r in records)
                       for mode in ('single_agent', 'assisted', 'multi_agent')}}

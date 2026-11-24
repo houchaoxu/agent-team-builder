@@ -61,6 +61,17 @@ class CLITests(unittest.TestCase):
         self.assertEqual(updated["text"], "current contract")
         self.assertEqual(updated["history"][-1]["text"], "old contract")
 
+    def test_plan_mode_override_and_host_matrix_without_team(self):
+        path = self.write('solo.json', {'title': 'Complex work in solo mode', 'collaboration_mode': 'team',
+                         'scores': dict.fromkeys(('independence', 'complexity', 'specialization', 'parallel_benefit'), 90)})
+        record = self.invoke('plan', path, '--mode', 'solo')
+        self.assertEqual(record['execution']['requested_mode'], 'solo')
+        self.assertEqual(record['execution']['agents'], [])
+        self.assertEqual(record['execution']['cost_estimate']['additional_agents'], 0)
+        self.assertFalse((self.root / '.agent-team/team.yaml').exists())
+        matrix = self.invoke('host', 'matrix')
+        self.assertTrue(all(row['source'] == 'no_receipt' for row in matrix['platforms']))
+
     def test_role_preview_then_install_and_restart(self):
         self.invoke("init")
         role = self.invoke("role", "generate", "order-expert", "--name", "Order Expert",

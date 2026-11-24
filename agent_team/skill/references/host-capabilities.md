@@ -53,7 +53,7 @@ agent-team --project <project> --platform <actual-platform> --host <current-host
 
 执行方式为 `native_role`、`generic_subagent`、`dynamic_subagent` 或 `sequential_handoff`。临时角色在创建前可以没有 `agent_id`；其实际调用 ID 必须从宿主返回值取得，不自行生成。
 
-项目默认并发为 3，可配置正整数。有效并发取项目策略与当前宿主限制中较小者，assisted 最多 1；宿主限制未知时保守使用 1。写入任务只有在本次明确验证 `parallel_writes: true` 后才可并行，否则串行。原有依赖、独立交付物与文件边界仍须满足，不因增加并发配置放宽。
+新项目默认并发为 2，可配置正整数；已有显式配置保留。有效并发取项目策略与当前宿主限制中较小者，assisted 最多 1；宿主限制未知时保守使用 1。写入任务只有在本次明确验证 `parallel_writes: true` 后才可并行，否则串行。原有依赖、独立交付物与文件边界仍须满足，不因增加并发配置放宽。
 
 若 `shared_workspace: false`，当前规划器保留顺序交接并报告项目传递缺口；须先建立、验证隔离工作区的项目输入与产物回收契约。`worktree: true` 只表示能力存在，不证明已经准备好工作区，不能直接安排文件任务。
 
@@ -72,5 +72,7 @@ agent-team --project <project> --platform <actual-platform> --host <current-host
 ```
 
 `host verify` 校验回执并保存到 `.agent-team/hosts/<platform>.json`；它不是执行工具，也不会替你完成注册或试调用。`host inspect` 的 `verification` 表示当前仍待验收的阶段，历史回执独立显示为 `last_verification`，不会升级当前能力。持久记录用于排障和说明已经验证过什么，不作为下次会话的能力授权。后续复杂任务只复核将要使用的工具、角色和限制；普通简单任务无需运行 inspect、verify 或安装诊断。
+
+`host matrix` 汇总各宿主最近一次保存的五阶段回执。它只反映历史验收记录；没有记录显示 `unknown`，不代表不支持，也不会推断当前会话能力。保存回执时应记录宿主版本和实际证据，以便版本间比较。
 
 当前适配器的格式支持和测试结果只覆盖其声明范围。单元测试能够验证路由、转换和校验边界；宿主真实加载、注册、调用与结果返回需在相应版本中取得实际证据，不能从 Mock 测试推断所有平台均已原生适配。

@@ -30,10 +30,13 @@ def parser():
     host_parser = sub.add_parser("host", help="协商当前宿主能力；验收记录不作为以后会话的工具证据")
     host_sub = host_parser.add_subparsers(dest="action", required=True)
     host_sub.add_parser("inspect", help="只读查看安装契约、当前会话能力与执行方式")
+    host_sub.add_parser("matrix", help="查看各宿主最近保存的验收阶段")
     verify = host_sub.add_parser("verify", help="校验并保存宿主实际验收结果，不执行宿主工具")
     verify.add_argument("receipt", type=Path)
     plan = sub.add_parser("plan", help="依据主 Agent 提供的语义分析生成任务交接")
     plan.add_argument("spec", type=Path)
+    plan.add_argument("--mode", choices=("solo", "smart", "team"),
+                      help="协作策略；默认 smart，solo 禁止委派，team 明确启用协作")
     task = sub.add_parser("task", help="任务历史与状态")
     task_sub = task.add_subparsers(dest="action", required=True)
     task_sub.add_parser("list")
@@ -45,6 +48,7 @@ def parser():
     update.add_argument("--summary", default="")
     update.add_argument("--evidence", type=Path, help="真实验收结果映射 YAML/JSON")
     update.add_argument("--metrics", type=Path, help="宿主提供的实际统计映射 YAML/JSON")
+    update.add_argument("--approve-delegation", action="store_true", help="记录当前任务已获用户授权委派")
     role = sub.add_parser("role", help="角色发现、推荐、生成和项目安装")
     role_sub = role.add_subparsers(dest="action", required=True)
     role_sub.add_parser("tools", help="查询 Agency 上游安装目标、格式和作用域")
@@ -143,6 +147,9 @@ def dispatch(args):
     if not start.is_dir():
         raise ValueError("项目目录不存在: {}".format(start))
     root = discover_root(start)
+    if args.command == "host" and args.action == "matrix":
+        from .hosts import verification_matrix
+        return verification_matrix(root)
     host = read_yaml(args.host) if args.host else None
     from .hosts import detect_host, inspect_host, negotiate, record_verification
     platform = detect_host(root, host=host) if args.platform == "auto" else args.platform
@@ -156,7 +163,7 @@ def dispatch(args):
     if args.command == "plan":
         spec = read_yaml(args.spec)
         # Every plan can be created without loading a role catalog for simple work.
-        return plan_task(root, spec, host=host, platform=platform)
+        return plan_task(root, spec, host=host, platform=platform, collaboration_mode=args.mode)
     if args.command in ("status", "doctor"):
         team = validate_team(read_yaml(safe_path(root, ".agent-team/team.yaml")))
         if args.command == "status":
@@ -171,7 +178,8 @@ def dispatch(args):
             return get_task(root, args.id)
         return update_task(root, args.id, args.status, args.summary,
                            metrics=read_yaml(args.metrics) if args.metrics else None,
-                           evidence=read_yaml(args.evidence) if args.evidence else None)
+                           evidence=read_yaml(args.evidence) if args.evidence else None,
+                           approve_delegation=args.approve_delegation)
     if args.command == "role":
         if args.action == "tools":
             from .agency_install import supported_tools

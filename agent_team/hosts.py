@@ -160,8 +160,7 @@ def inspect_host(platform, host=None, root=None):
         path = safe_path(root, ".agent-team/hosts/" + platform + ".json")
         if path.is_file():
             receipt = json.loads(path.read_text(encoding="utf-8"))
-            if not isinstance(receipt, dict) or receipt.get("platform") != platform or receipt.get("schema_version") != 1:
-                raise ValueError("Invalid stored host verification; preserve the file and repair explicitly")
+            _validate_saved_receipt(receipt, platform)
             result["last_verification"] = receipt
             result["last_verification_is_current_session"] = bool(
                 cap["session_id"] and receipt.get("session_id") == cap["session_id"])
@@ -195,9 +194,40 @@ def record_verification(root, platform, receipt, host=None):
     if returned.get("status") == "passed" and (
             invoked.get("status") != "passed" or returned["agent_id"] != invoked.get("agent_id")):
         raise ValueError("A received result must match a passed invocation in this receipt")
-    saved = dict(receipt, recorded_at=datetime.now(timezone.utc).isoformat(), reporter="host",
+    saved = dict(receipt, host_version=cap["host_version"], recorded_at=datetime.now(timezone.utc).isoformat(), reporter="host",
                  runtime_capabilities_reusable=False)
     with project_lock(root):
         path = safe_path(root, ".agent-team/hosts/" + platform + ".json")
         _atomic_text(path, json.dumps(saved, ensure_ascii=False, indent=2) + "\n")
     return saved
+
+
+def _validate_saved_receipt(receipt, platform):
+    if (not isinstance(receipt, dict) or receipt.get('platform') != platform
+            or type(receipt.get('schema_version')) is not int or receipt['schema_version'] != 1
+            or not isinstance(receipt.get('checks'), dict)):
+        raise ValueError('Invalid stored host verification; preserve the file and repair explicitly')
+    for stage, check in receipt['checks'].items():
+        if stage not in STAGES or not isinstance(check, dict) or check.get('status') not in ('passed', 'failed', 'pending'):
+            raise ValueError('Invalid stored host verification; preserve the file and repair explicitly')
+
+
+def verification_matrix(root):
+    """Summarize saved host checks without promoting them to runtime evidence."""
+    from .storage import safe_path
+    rows = []
+    for platform in PLATFORMS:
+        path = safe_path(root, ".agent-team/hosts/" + platform + ".json")
+        receipt = None
+        if path.is_file():
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            _validate_saved_receipt(receipt, platform)
+        checks = {stage: "unknown" for stage in STAGES}
+        if receipt:
+            for stage, check in receipt.get("checks", {}).items():
+                checks[stage] = check["status"]
+        rows.append({"platform": platform, "host_version": receipt.get("host_version") if receipt else None,
+                     "recorded_at": receipt.get("recorded_at") if receipt else None,
+                     "checks": checks, "source": "saved_receipt" if receipt else "no_receipt"})
+    return {"verification_scope": "latest saved host receipts; not current-session capability evidence",
+            "platforms": rows}
